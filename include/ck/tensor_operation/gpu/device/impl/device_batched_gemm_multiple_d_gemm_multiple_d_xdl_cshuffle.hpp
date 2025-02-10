@@ -827,8 +827,10 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
              is_same_v<tensor_layout::gemm::ColumnMajor, B0Layout> &&
              CheckDLayout<tensor_layout::gemm::RowMajor, D0sLayout, NumD0Tensor>() &&
              (is_same_v<tensor_layout::gemm::RowMajor, B1Layout> ||
-              is_same_v<tensor_layout::gemm::ColumnMajor, B1Layout>) &&
-             CheckDLayout<tensor_layout::gemm::RowMajor, D1sLayout, NumD1Tensor>() &&
+              is_same_v<tensor_layout::gemm::ColumnMajor,
+                        B1Layout>)&&CheckDLayout<tensor_layout::gemm::RowMajor,
+                                                 D1sLayout,
+                                                 NumD1Tensor>() &&
              is_same_v<tensor_layout::gemm::RowMajor, E1Layout>))
         {
             return false;
