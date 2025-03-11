@@ -285,15 +285,12 @@ struct BlockFmhaPipelineQRKSVSAsync
             __builtin_amdgcn_sched_barrier(0); // make sure sched_barrier(0) for this check
         }
 
-        auto k_dram_block_window =
-            make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
-                             k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+        auto k_curr_iter_orig = seqlen_k_start;
 
         auto k_dram_window = make_tile_window(
-            k_dram_block_window.get_bottom_tensor_view(),
-            k_dram_block_window.get_window_lengths(),
-            k_dram_block_window.get_window_origin(),
+            k_dram_block_window_tmp.get_bottom_tensor_view(),
+            k_dram_block_window_tmp.get_window_lengths(),
+            {seqlen_k_start, 0},
             Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
                                                                     // load
         k_dram_window.init_raw();
@@ -408,7 +405,6 @@ struct BlockFmhaPipelineQRKSVSAsync
             }
             else if constexpr(BiasEnum == BlockAttentionBiasEnum::ALIBI)
             {
-                const auto k_origin    = k_dram_block_window.get_window_origin();
                 constexpr auto s_spans = decltype(s_acc)::get_distributed_spans();
                 s_acc                  = tile_elementwise_in(s_acc_element_func, s_acc);
                 sweep_tile_span(s_spans[number<0>{}], [&](auto idx0) {
@@ -417,7 +413,7 @@ struct BlockFmhaPipelineQRKSVSAsync
                             s_acc.get_tile_distribution(), make_tuple(idx0, idx1));
 
                         const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                        const auto col = k_curr_iter_orig + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
                         s_acc(i_j_idx) *= scale_s;
@@ -435,18 +431,15 @@ struct BlockFmhaPipelineQRKSVSAsync
             move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
-                const auto k_origin      = k_dram_block_window.get_window_origin();
-                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}),
-                                                           number<kM0>{},
-                                                           number<kN0>{});
+                bool need_perpixel_check = mask.IsEdgeTile(
+                    q_origin.at(number<0>{}), k_curr_iter_orig, number<kM0>{}, number<kN0>{});
 
                 if(need_perpixel_check)
                 {
                     set_tile_if(
                         s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
                             const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                            const auto col = k_curr_iter_orig + tile_idx.at(number<1>{});
                             return mask.IsOutOfBound(row, col);
                         });
                 }
@@ -646,8 +639,8 @@ struct BlockFmhaPipelineQRKSVSAsync
             if(i_total_loops < num_total_loop)
             {
                 // move K tile windows
-                move_tile_window(k_dram_block_window, {kN0, 0});
-                k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
+                k_curr_iter_orig += kN0;
+                k_dram_window.set_window_origin({k_curr_iter_orig, 0});
 
                 if constexpr(k1_loops >= 2 &&
                              LdsSeq.at(number<0>{}) == LdsSeq.at(number<k0_loops + k1_loops - 2>{}))
