@@ -293,12 +293,12 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto num_loops = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
         {
-            if(num_total_loop <= 0)
+            if(num_loops <= 0)
             {
                 if constexpr(kStoreLSE)
                 {
@@ -328,15 +328,15 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
-        index_t i_total_loops = 0;
+        index_t i_loop = 0;
 
         do
         {
             if constexpr(kPreloadWholeNextIterationK)
             {
-                if(i_total_loops == 0) // executed by fist iteration
+                if(i_loop == 0) // executed by fist iteration
                 {
-                    if(num_total_loop > 1) // there are multiple iterations
+                    if(num_loops > 1) // there are multiple iterations
                     {
                         static_for<0, k0_loops - 1, 1>{}([&](auto i_k0) {
                             store_tile(
@@ -430,7 +430,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 }
                 else // executed by intermediate and last iteration
                 {
-                    if(i_total_loops < num_total_loop - 1) // intermediate iteration
+                    if(i_loop < num_loops - 1) // intermediate iteration
                     {
                         store_tile(k_lds_windows[I0],
                                    tile_elementwise_in(k_element_func, k_tiles[I0]));
@@ -714,7 +714,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 auto randval_ptr =
                     reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeK<Problem>();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
+                    smem_ptr, seqlen_k_start + i_loop * kN0, p_compute, randval_dram_window);
             }
 
             __builtin_amdgcn_sched_barrier(0x7f);
@@ -748,7 +748,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
             if constexpr(!kPreloadWholeNextIterationK)
             {
-                if(i_total_loops < num_total_loop - 1)
+                if(i_loop < num_loops - 1)
                 {
                     move_tile_window(k_dram_window, {kN0, -(k0_loops - 1) * kK0});
                     k_tiles[I0] = load_tile(k_dram_window);
@@ -802,7 +802,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 __builtin_amdgcn_s_barrier();
             };
 
-        } while(++i_total_loops < num_total_loop);
+        } while(++i_loop < num_loops);
 
         // store lse
         if constexpr(kStoreLSE)
