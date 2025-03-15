@@ -386,6 +386,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                               sequence<0, (k0_loops - 1) * kK0>{},
                                               sequence<kM0, k0_loops * kK0>{}),
                                k_lds_windows[number<(k0_loops - 1) % NumKLdsBuffers>{}]);
+
+                        // prefetch second v_tile
+                        v_tiles[I1] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {0, kK1});
                     }
                     else // there is only single iteration
                     {
@@ -426,6 +430,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                k_lds_windows[number<(k0_loops - 1) % NumKLdsBuffers>{}]);
 
                         // move_tile_window(k_dram_window, {0, -k0_loops * kK0});
+
+                        // prefetch second v_tile
+                        v_tiles[I1] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {0, kK1});
                     }
                 }
                 else // executed by intermediate and last iteration
@@ -454,10 +462,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                         k_tiles[I0] = load_tile(k_dram_window);
                         move_tile_window(k_dram_window, {0, kK0});
 
-                        k_tiles[I1] = load_tile(k_dram_window);
-                        if constexpr(1 < k0_loops - 1)
-                            move_tile_window(k_dram_window, {0, kK0});
-
                         block_sync_lds();
                         gemm_0(s_acc,
                                get_slice_tile(q_tile, sequence<0, kK0>{}, sequence<kM0, 2 * kK0>{}),
@@ -468,9 +472,8 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                             store_tile(k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
                                        k_tiles[number<i_k0>{}]);
 
-                            k_tiles[number<i_k0>{}] = load_tile(k_dram_window);
-                            if constexpr(i_k0 < k0_loops - 1)
-                                move_tile_window(k_dram_window, {0, kK0});
+                            k_tiles[number<i_k0 - 1>{}] = load_tile(k_dram_window);
+                            move_tile_window(k_dram_window, {0, kK0});
 
                             block_sync_lds();
                             gemm_0(s_acc,
@@ -480,7 +483,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                    k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
                         });
 
+                        k_tiles[number<k0_loops - 1>{}] = load_tile(k_dram_window);
+
                         move_tile_window(k_dram_window, {0, -(k0_loops - 1) * kK0});
+
+                        // prefetch second v_tile
+                        v_tiles[I1] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {0, kK1});
                     }
                     else // last iteration
                     {
@@ -509,6 +518,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                                   sequence<kM0, (i_k0 + 1) * kK0>{}),
                                    k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
                         });
+
+                        // prefetch second v_tile
+                        v_tiles[I1] = load_tile(v_dram_window);
+                        move_tile_window(v_dram_window, {0, kK1});
                     };
                 };
             }
@@ -541,6 +554,10 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 v_tiles[I0] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
 
+                // prefetch second v_tile
+                v_tiles[I1] = load_tile(v_dram_window);
+                move_tile_window(v_dram_window, {0, kK1});
+
                 block_sync_lds();
                 gemm_0(s_acc,
                        get_slice_tile(q_tile,
@@ -553,7 +570,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
             const auto bias_tile = load_tile(bias_dram_window); // load bias tile
 
-            static_for<1, NumPrefetchV, 1>{}([&](auto i_buf) {
+            static_for<2, NumPrefetchV, 1>{}([&](auto i_buf) {
                 v_tiles[i_buf] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
             });
@@ -725,12 +742,18 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     Policy::template MakeShuffledVRegBlockDescriptor<Problem>());
                 shuffle_tile(v_shuffle_tmp, v_tiles[I0]);
 
+                if constexpr(Policy::template IsFirstVLdsBufferOverlapLastKLdsBuffer<Problem>())
+                    __builtin_amdgcn_s_barrier();
+
                 store_tile(
                     v_lds_windows[I0],
                     tile_elementwise_in(v_element_func, v_shuffle_tmp)); // store the prefetch
             }
             else
             {
+                if constexpr(Policy::template IsFirstVLdsBufferOverlapLastKLdsBuffer<Problem>())
+                    __builtin_amdgcn_s_barrier();
+
                 store_tile(v_lds_windows[I0],
                            tile_elementwise_in(v_element_func, v_tiles[I0])); // store the prefetch
             }
