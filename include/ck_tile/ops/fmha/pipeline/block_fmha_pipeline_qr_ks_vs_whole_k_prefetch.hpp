@@ -511,6 +511,13 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                 k_lds_windows[number<i_k0 % NumKLdsBuffers>{}],
                                 tile_elementwise_in(k_element_func, k_tiles[number<i_k0>{}]));
 
+                            if constexpr(i_k0 == 1)
+                            {
+                                // prefetch second v_tile
+                                v_tiles[I1] = load_tile(v_dram_window);
+                                move_tile_window(v_dram_window, {0, kK1});
+                            };
+
                             block_sync_lds();
                             gemm_0(s_acc,
                                    get_slice_tile(q_tile,
@@ -518,10 +525,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                                                   sequence<kM0, (i_k0 + 1) * kK0>{}),
                                    k_lds_windows[number<i_k0 % NumKLdsBuffers>{}]);
                         });
-
-                        // prefetch second v_tile
-                        v_tiles[I1] = load_tile(v_dram_window);
-                        move_tile_window(v_dram_window, {0, kK1});
                     };
                 };
             }
