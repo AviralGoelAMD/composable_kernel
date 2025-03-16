@@ -554,16 +554,16 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 v_tiles[I0] = load_tile(v_dram_window);
                 move_tile_window(v_dram_window, {0, kK1});
 
-                // prefetch second v_tile
-                v_tiles[I1] = load_tile(v_dram_window);
-                move_tile_window(v_dram_window, {0, kK1});
-
                 block_sync_lds();
                 gemm_0(s_acc,
                        get_slice_tile(q_tile,
                                       sequence<0, (k0_loops - 1) * kK0>{},
                                       sequence<kM0, k0_loops * kK0>{}),
                        k_lds_windows[number<(k0_loops - 1) % NumKLdsBuffers>{}]);
+
+                // prefetch second v_tile
+                v_tiles[I1] = load_tile(v_dram_window);
+                move_tile_window(v_dram_window, {0, kK1});
             };
 
             __builtin_amdgcn_sched_barrier(0);
