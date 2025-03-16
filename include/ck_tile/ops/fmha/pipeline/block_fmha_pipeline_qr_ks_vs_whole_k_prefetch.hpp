@@ -369,16 +369,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 
                         move_tile_window(k_dram_window, {kN0, -(k0_loops - 1) * kK0});
 
-                        // prefetch all k_tiles for next iteration
-                        static_for<0, k0_loops, 1>{}([&](auto i_k0) {
-                            k_tiles[number<i_k0>{}] = load_tile(k_dram_window);
-
-                            if constexpr(i_k0 < k0_loops - 1)
-                                move_tile_window(k_dram_window, {0, kK0});
-                        });
-
-                        move_tile_window(k_dram_window, {0, -(k0_loops - 1) * kK0});
-
                         block_sync_lds();
                         // execute last unroll of gemm_0
                         gemm_0(s_acc,
@@ -390,6 +380,16 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                         // prefetch second v_tile
                         v_tiles[I1] = load_tile(v_dram_window);
                         move_tile_window(v_dram_window, {0, kK1});
+
+                        // prefetch all k_tiles for next iteration
+                        static_for<0, k0_loops, 1>{}([&](auto i_k0) {
+                            k_tiles[number<i_k0>{}] = load_tile(k_dram_window);
+
+                            if constexpr(i_k0 < k0_loops - 1)
+                                move_tile_window(k_dram_window, {0, kK0});
+                        });
+
+                        move_tile_window(k_dram_window, {0, -(k0_loops - 1) * kK0});
                     }
                     else // there is only single iteration
                     {
