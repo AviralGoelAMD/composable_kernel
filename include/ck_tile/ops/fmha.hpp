@@ -13,6 +13,7 @@
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_appendkv_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_appendkv_tile_partitioner.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_kernel.hpp"
+#include "ck_tile/ops/fmha/kernel/fmha_fwd_q_tile_group_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_splitkv_combine_kernel.hpp"
 #include "ck_tile/ops/fmha/kernel/fmha_fwd_splitkv_kernel.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_bwd_convert_dq.hpp"
