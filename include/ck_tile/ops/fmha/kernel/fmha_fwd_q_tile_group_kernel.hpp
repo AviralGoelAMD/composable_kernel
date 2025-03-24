@@ -926,7 +926,7 @@ struct FmhaFwdQTileGroupKernel
         };
 
         // TODO: this may need tuning
-        return dim3(num_workgroup_per_seqlen_q * num_tile_per_hdim_v, nhead_, batch_size_);
+        return dim3(num_workgroup_per_seqlen_q, num_tile_per_hdim_v * nhead_, batch_size_);
     }
 
     CK_TILE_DEVICE static constexpr auto GetTileIndex(const Kargs& kargs)
@@ -934,9 +934,9 @@ struct FmhaFwdQTileGroupKernel
         const index_t num_tile_per_hdim_v =
             ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
 
-        const index_t i_block = blockIdx.x;
-        const index_t i_nhead = blockIdx.y;
-        const index_t i_batch = blockIdx.z;
+        const index_t i_tile_group_m = blockIdx.x;
+        const index_t i_nhead_vtile  = blockIdx.y;
+        const index_t i_batch        = blockIdx.z;
 
         const auto f = [](index_t dividend, index_t divisor) {
             index_t quotient = dividend / divisor;
@@ -944,7 +944,7 @@ struct FmhaFwdQTileGroupKernel
             return ck_tile::make_tuple(quotient, modulus);
         };
 
-        const auto [i_tile_group_m, i_tile_n] = f(i_block, num_tile_per_hdim_v);
+        const auto [i_nhead, i_tile_n] = f(i_nhead_vtile, num_tile_per_hdim_v);
 
         return ck_tile::make_tuple(i_tile_group_m, i_tile_n, i_nhead, i_batch);
     }
@@ -961,9 +961,7 @@ struct FmhaFwdQTileGroupKernel
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
 
-        const index_t num_tile_per_hdim_v =
-            ck_tile::integer_divide_ceil(kargs.hdim_v, FmhaPipeline::kN1);
-        const index_t num_workgroup_per_seqlen_q = gridDim.x / num_tile_per_hdim_v;
+        const index_t num_workgroup_per_seqlen_q = gridDim.x;
         const index_t last_tile_per_seqlen_q =
             ck_tile::integer_divide_ceil(kargs.seqlen_q, FmhaPipeline::kM0) - 1;
 
