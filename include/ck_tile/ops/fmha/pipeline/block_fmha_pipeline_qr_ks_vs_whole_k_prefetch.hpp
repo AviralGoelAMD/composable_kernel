@@ -622,7 +622,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
 #endif
             }
             move_tile_window(bias_dram_window, {0, kN0});
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
+            if constexpr(FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
                 bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
@@ -639,6 +639,17 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                         });
                 }
             }
+            else if constexpr(kPadSeqLenK)
+            {
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                set_tile_if(s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                    if(i_loop < num_loops - 1)
+                        return false;
+                    const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                    const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                    return mask.IsOutOfBound(row, col);
+                });
+            };
 
             const auto s = cast_tile<SMPLComputeDataType>(s_acc); // S{j}
             auto m_local = block_tile_reduce<SMPLComputeDataType>(
