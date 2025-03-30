@@ -214,12 +214,21 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                 return statically_indexed_array<k_tile_type, 1>{};
         }();
 
-        k_tiles[I0] = load_tile(k_dram_window);
-        move_tile_window(k_dram_window, {0, kK0});
+        // for kPreloadWholeNextIterationK == true, load k_tile first
+        if constexpr(kPreloadWholeNextIterationK)
+        {
+            k_tiles[I0] = load_tile(k_dram_window);
+            move_tile_window(k_dram_window, {0, kK0});
+        };
 
         auto q_tile = load_tile(q_dram_window);
 
-        __builtin_amdgcn_sched_barrier(0);
+        // for kPreloadWholeNextIterationK == false, load q_tile first
+        if constexpr(!kPreloadWholeNextIterationK)
+        {
+            k_tiles[I0] = load_tile(k_dram_window);
+            move_tile_window(k_dram_window, {0, kK0});
+        };
 
         // K tile in LDS
         KDataType* k_lds_ptr = static_cast<KDataType*>(smem_ptr);
