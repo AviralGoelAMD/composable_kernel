@@ -772,6 +772,15 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                         tile_elementwise_in(p_compute_element_func, p_compute));
             }();
 
+            if constexpr(!kPreloadWholeNextIterationK)
+            {
+                move_tile_window(k_dram_window, {kN0, -(k0_loops - 1) * kK0});
+                k_tiles[I0] = load_tile(k_dram_window);
+                move_tile_window(k_dram_window, {0, kK0});
+
+                __builtin_amdgcn_sched_barrier(0);
+            }
+
             {
                 if constexpr(k1_loops > NumPrefetchV)
                 {
@@ -798,18 +807,6 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetch
                     store_tile(v_lds_windows[I1], tile_elementwise_in(v_element_func, v_tiles[I1]));
                 }
             };
-
-            if constexpr(!kPreloadWholeNextIterationK)
-            {
-                if(i_loop < num_loops - 1)
-                {
-                    move_tile_window(k_dram_window, {kN0, -(k0_loops - 1) * kK0});
-                    k_tiles[I0] = load_tile(k_dram_window);
-                    move_tile_window(k_dram_window, {0, kK0});
-                };
-
-                __builtin_amdgcn_sched_barrier(0);
-            }
 
             // STAGE 3, KV gemm
             static_for<1, k1_loops - 1, 1>{}([&](auto i_k1) {
