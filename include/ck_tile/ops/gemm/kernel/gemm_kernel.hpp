@@ -749,10 +749,11 @@ struct GemmKernel
         }
         else
         {
-            if(kargs.k_batch == 1)
+            //if(kargs.k_batch == 1)
             {
                 RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
+            #if 0
             else
             {
                 if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
@@ -762,6 +763,7 @@ struct GemmKernel
                         a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
                 }
             }
+            #endif
         }
     }
 };
