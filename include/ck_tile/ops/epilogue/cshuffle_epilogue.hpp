@@ -172,9 +172,9 @@ struct CShuffleEpilogue
 
             const auto c_warp_in_tensor_casted = cast_tile<ODataType>(c_warp_in_tensor);
 
-            block_sync_lds();
+            //block_sync_lds();
             store_tile(in_lds_window, c_warp_in_tensor_casted);
-            block_sync_lds();
+            //block_sync_lds();
 
             const auto c_out_tensor =
                 load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
