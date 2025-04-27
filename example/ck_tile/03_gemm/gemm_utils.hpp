@@ -52,12 +52,13 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer = false;
+    static_assert(0);
 #endif
 #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -84,6 +85,7 @@ struct GemmConfig
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer = true;
+    static_assert(0);
 #endif
 
     static constexpr bool kPadM = false;
