@@ -17,6 +17,8 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
+    static_assert(MinBlockPerCu == 2);
+    //static_assert(0);
     Kernel{}(args...);
 }
 

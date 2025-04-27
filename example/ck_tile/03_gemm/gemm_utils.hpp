@@ -98,7 +98,7 @@ struct GemmConfig
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
 
-    static constexpr int kBlockPerCu                         = 1;
+    static constexpr int kBlockPerCu                         = 2;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 };

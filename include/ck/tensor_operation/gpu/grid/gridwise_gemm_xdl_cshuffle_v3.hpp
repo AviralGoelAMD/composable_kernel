@@ -37,7 +37,7 @@ __global__ void
 {
 #if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
+    static_assert(MinimumOccupancy==2);
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -68,7 +68,7 @@ __global__ void
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
+    static_assert(MinimumOccupancy==2);
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
     GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(

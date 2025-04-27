@@ -26,7 +26,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu = 1;
+    constexpr int kBlockPerCu = 2;
 
     // This part comes from the Codegen
     constexpr ck_tile::index_t M_Tile = 128;
