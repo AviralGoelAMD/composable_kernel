@@ -124,6 +124,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
         }
+        #if 0
         else if(tail_num == ck_tile::TailNumber::Odd)
         {
             Run(ck_tile::bool_constant<true>{},
@@ -134,6 +135,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
             Run(ck_tile::bool_constant<true>{},
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
         }
+        #endif
         else
         {
             std::ostringstream err;
@@ -218,6 +220,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
     }
     else
     {
+        #if 0
         if(tail_num == ck_tile::TailNumber::Full)
         {
             Run(ck_tile::bool_constant<false>{},
@@ -234,6 +237,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
         }
         else
+        #endif
         {
             std::ostringstream err;
             err << "Num K loop must be larger than number of prefetech stages."
