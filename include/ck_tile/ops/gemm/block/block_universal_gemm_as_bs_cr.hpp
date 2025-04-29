@@ -146,7 +146,7 @@ struct BlockUniversalGemmAsBsCr
                                        tuple<sequence<MIterPerWarp, MWarp>, KIterSeq>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
         constexpr auto a_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             a_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
@@ -171,7 +171,7 @@ struct BlockUniversalGemmAsBsCr
                                        tuple<sequence<NIterPerWarp, NWarp>, KIterSeq>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{};
         constexpr auto b_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             b_block_outer_dstr_encoding, typename WarpGemm::BWarpDstrEncoding{});
