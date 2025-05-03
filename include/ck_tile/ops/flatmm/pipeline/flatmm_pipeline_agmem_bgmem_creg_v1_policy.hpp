@@ -25,15 +25,15 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
 
         constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<kKPerBlock / 8>{}, number<kMPerBlock>{}, number<8>{}),
-            make_tuple(number<(kMPerBlock + 1) * 8>{}, number<8>{}, number<1>{}),
-            number<8>{},
+            make_tuple(number<kKPerBlock / 32>{}, number<kMPerBlock>{}, number<32>{}),
+            make_tuple(number<(kMPerBlock + 1) * 32>{}, number<32>{}, number<1>{}),
+            number<32>{},
             number<1>{});
 
         constexpr auto a_lds_block_desc = transform_tensor_descriptor(
             a_lds_block_desc_0,
             make_tuple(make_pass_through_transform(kMPerBlock),
-                       make_merge_transform(make_tuple(kKPerBlock / 8, 8))),
+                       make_merge_transform(make_tuple(kKPerBlock / 32, 32))),
             make_tuple(sequence<1>{}, sequence<0, 2>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -75,18 +75,18 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
-            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType);
-            constexpr index_t M0           = MPerBlock / M1;
-            constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize;
+            constexpr index_t M1           = Problem::VectorLoadSize / sizeof(ADataType); //32
+            constexpr index_t M0           = MPerBlock / M1; // 4
+            constexpr index_t total_pixels = MPerBlock * KPerBlock / BlockSize; //128
             static_assert(total_pixels % M1 == 0);
-            constexpr index_t K3    = total_pixels / M1;
-            constexpr index_t KPack = GetSmemPackA<Problem>();
+            constexpr index_t K3    = total_pixels / M1; //4
+            constexpr index_t KPack = GetSmemPackA<Problem>(); //32
             static_assert(KPack % K3 == 0);
-            constexpr index_t K2 = KPack / K3;
-            if constexpr(get_warp_size() % (K2 * M0))
+            constexpr index_t K2 = KPack / K3; // 8
+            if constexpr(get_warp_size() % (K2 * M0)) //32
             {
-                constexpr index_t K1 = get_warp_size() / (K2 * M0);
-                constexpr index_t K0 = BlockSize / get_warp_size();
+                constexpr index_t K1 = get_warp_size() / (K2 * M0); // 2
+                constexpr index_t K0 = BlockSize / get_warp_size(); // 4
                 static_assert(KPerBlock == K0 * K1 * K2 * K3);
                 return make_static_tile_distribution(
                     tile_distribution_encoding<sequence<1>,
@@ -167,7 +167,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
         constexpr index_t KBPerLoad = Problem::VectorLoadSize / sizeof(BDataType); // dwordx4 load B elem cnt
         constexpr index_t KThdPerWave = WaveSize;        // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
-        constexpr index_t KRepeat     = 1;
+        constexpr index_t KRepeat     = 2;
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
