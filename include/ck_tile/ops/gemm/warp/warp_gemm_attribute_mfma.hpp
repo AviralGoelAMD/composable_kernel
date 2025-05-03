@@ -229,15 +229,20 @@ struct WarpGemmAtrributeMfmaIterateK
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
-        using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
-
+        //using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
+        //using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
+        //Debug<typename Impl::AVecType> xxx1;
+        //Debug<AWarpDstrEncoding> xx2;
+        //Debug<BWarpDstrEncoding> xx3;
+        const typename Impl::AVecType* p_a = reinterpret_cast<const typename Impl::AVecType*>(&a_vec);
+        const typename Impl::BVecType* p_b = reinterpret_cast<const typename Impl::BVecType*>(&b_vec);
+        
         static_for<0, kKIter, 1>{}([&](auto iKIter) {
-            Impl{}(c_vec,
-                   reinterpret_cast<const buf_a&>(a_vec)
-                       .template get_as<typename Impl::AVecType>()[iKIter],
-                   reinterpret_cast<const buf_b&>(b_vec)
-                       .template get_as<typename Impl::BVecType>()[iKIter],
+            Impl{}(c_vec, p_a[iKIter], p_b[iKIter],
+                   //reinterpret_cast<const buf_a&>(a_vec)
+                   //    .template get_as<typename Impl::AVecType>()[iKIter],
+                   //reinterpret_cast<const buf_b&>(b_vec)
+                   //    .template get_as<typename Impl::BVecType>()[iKIter],
                    bool_constant<post_nop_>{});
         });
     }
@@ -253,7 +258,7 @@ struct WarpGemmAtrributeMfmaIterateK
         using buf_b = thread_buffer<typename Impl::BVecType, kKIter>;
 
         static_assert(iKIter < kKIter);
-
+        static_assert(0);
         // static_for<0, kKIter, 1>{}([&](auto iKIter) {
         Impl{}(c_vec,
                reinterpret_cast<const buf_a&>(a_vec)

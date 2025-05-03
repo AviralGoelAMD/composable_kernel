@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
+template <typename A> struct Debug;
 namespace ck_tile {
 
 struct UniversalFlatmmPipelineAgBgCrPolicy
@@ -159,12 +160,11 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         using TileShape = typename Problem::BlockGemmShape; // ck_tile::TileFlatmmShape
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t WaveNum   = BlockSize / WaveSize;
+        constexpr index_t BlockSize = Problem::kBlockSize; //
+        constexpr index_t WaveSize  = get_warp_size();  // 64
+        constexpr index_t WaveNum   = BlockSize / WaveSize;  // 4
 
-        constexpr index_t KBPerLoad =
-            Problem::VectorLoadSize / sizeof(BDataType); // dwordx4 load B elem cnt
+        constexpr index_t KBPerLoad = Problem::VectorLoadSize / sizeof(BDataType); // dwordx4 load B elem cnt
         constexpr index_t KThdPerWave = WaveSize;        // threads cnt in K dim
         constexpr index_t KWavePerBlk = 1;
         constexpr index_t KRepeat     = 1;
@@ -176,7 +176,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
 
-        return make_static_tile_distribution(
+        constexpr auto A = make_static_tile_distribution(
             tile_distribution_encoding<
                 sequence<WaveRepeat>,                                          // ?
                 tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction
@@ -188,6 +188,8 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                 // <repeat, vec_load>
                 sequence<1, 1, 2, 2>,
                 sequence<0, 3, 0, 3>>{});
+        //Debug<decltype(A.get_lengths())>  xx2;
+        return A;
     }
 
     template <typename Problem>
@@ -251,7 +253,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
                                                 WarpTile::at(I1),
                                                 WarpTile::at(I2),
                                                 Problem::TransposeC>;
-
+        //Debug<WarpGemm> xx1;
         using BlockFlatmmPolicy =
             BlockFlatmmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                     typename Problem::BDataType,

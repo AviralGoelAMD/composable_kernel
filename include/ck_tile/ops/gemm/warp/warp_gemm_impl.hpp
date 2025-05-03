@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+
+template <typename A> struct Debug;
 namespace ck_tile {
 
 template <typename WarpGemmAttribute_>
@@ -45,9 +47,9 @@ struct WarpGemmImpl
     CK_TILE_DEVICE void
     operator()(CTensor& c, const ATensor& a, const BTensor& b, bool_constant<post_nop_> = {}) const
     {
-        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor> &&
-                      detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
-                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        static_assert(detail::is_similiar_distributed_tensor_v<CTensor, CWarpTensor>);// &&
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor>);
+        //static_assert(detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
         using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
         using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
         using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
@@ -59,6 +61,9 @@ struct WarpGemmImpl
         auto c_vec       = c.get_thread_buffer().template get_as<CVec>()[I0];
 
         // c_vec += a_vec * b_vec
+        //Debug<ATensor> xx1;
+        //Debug<BVec> xx2;
+        //Debug<CVec> xx3;
         WarpGemmAttribute{}(c_vec, a_vec, b_vec, bool_constant<post_nop_>{});
 
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);

@@ -44,6 +44,15 @@ struct GemmBasicTypeConfig<ck_tile::half_t>
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
+template <>
+struct GemmBasicTypeConfig<ck_tile::fp8_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::fp8_t;
+    // ToDo: Add more bias config to support different categories of GEMM.
+};
 template <typename T>
 struct DataTypeTraits;
 
@@ -65,7 +74,13 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-using Types = GemmBasicTypeConfig<ck_tile::half_t>;
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
+
+using Types = GemmBasicTypeConfig<ck_tile::fp8_t>;
 
 // Specific type aliases for easy access
 using ADataType   = Types::ADataType;

@@ -115,6 +115,8 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // Block GEMM
         auto block_flatmm = BlockFlatmm();
 
+        //Debug<sequence<flatNPerWarp, flatKPerWarp, BlockGemmShape::flatKPerBlock>> xx1;
+
         // B flat DRAM window for load
         auto b_flat_distribution =
             PipelinePolicy::template MakeBFlatDramTileDistribution<Problem>();

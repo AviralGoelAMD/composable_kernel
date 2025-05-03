@@ -133,6 +133,7 @@ struct BlockFlatmmASmemBSmemCRegV1
             });
         });
 
+        //Debug<sequence<MIterPerWarp, NIterPerWarp, KIterPerWarp>> x2;
         // auto b_warp_windows = b_origin_warp_windows;
         auto b_warp_windows = b_flat_warp_windows;
 
@@ -152,7 +153,7 @@ struct BlockFlatmmASmemBSmemCRegV1
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     // read B warp tensor from B Block window
                     const auto b_warp_tensor = load_tile(b_warp_windows(nIter)(kIter));
-
+                    //Debug<number<decltype(b_warp_tensor)::get_thread_buffer_size()>> x2;
                     // read C warp tensor from C block tensor
                     CWarpTensor c_warp_tensor;
 
