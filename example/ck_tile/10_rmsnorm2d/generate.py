@@ -166,8 +166,8 @@ using traits_ = rmsnorm2d_fwd_traits_<XDataType_,
 """
 
     API_COMMON_HEADER = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "rmsnorm2d_fwd.hpp"
@@ -252,8 +252,8 @@ float rmsnorm2d_fwd_(const S& s, A a)
 """
 
     API_BASE = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "rmsnorm2d_fwd.hpp"
@@ -276,8 +276,8 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
 """
 
     INSTANCE_BASE = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "rmsnorm2d_fwd_api_common.hpp"
 

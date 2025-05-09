@@ -170,8 +170,8 @@ using traits_ = layernorm2d_fwd_traits_<XDataType_,
                                        kFusedQuant_>;
 """
     API_COMMON_HEADER = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "layernorm2d_fwd.hpp"
@@ -249,8 +249,8 @@ float layernorm2d_fwd_(const S& s, A a)
 """
 
     API_BASE = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <ck_tile/core.hpp>
 #include "layernorm2d_fwd.hpp"
@@ -285,8 +285,8 @@ float layernorm2d_fwd(layernorm2d_fwd_traits t,
 """
 
     INSTANCE_BASE = """
+// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "layernorm2d_fwd_api_common.hpp"
 

@@ -269,8 +269,8 @@ class GemmCodeGenerator:
             self.atype = 'fp16'
             self.ctype = 'fp16'
 
-        content = f"""// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+        content = f"""// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
+// SPDX-License-Identifier: MIT
 
 #pragma once
 #include "ck_tile/core.hpp"
@@ -305,8 +305,8 @@ using CLayout = {LAYOUT_MAP[self.config.layouts[2]]};
         group_name = f"{pipeline}_{epilogue}_{scheduler}_pad_{BOOL_MAP(kPadM)}_{BOOL_MAP(kPadN)}_{BOOL_MAP(kPadK)}"
         filename = f"gemm_{group_name}.hpp"
 
-        content = f"""// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+        content = f"""// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
+// SPDX-License-Identifier: MIT
 
 #include "gemm_common.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -469,8 +469,8 @@ struct GemmKernel {{
 
     def generate_common_instances_header(self):
         """Generate common instances header"""
-        content = """// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+        content = """// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
+// SPDX-License-Identifier: MIT
 #pragma once
 """
         for group in self.all_kernels:
@@ -479,8 +479,8 @@ struct GemmKernel {{
 
     def _generate_dispatcher(self):
         """Generate dispatch mechanism"""
-        content = """// SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+        content = """// Copyright (c) Advanced Micro Devices, Inc. or its affiliates. 
+// SPDX-License-Identifier: MIT
 
 #include "gemm_common.hpp"
 #include "gemm_instances.hpp"
