@@ -333,51 +333,145 @@ struct UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
+        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         constexpr index_t KPack     = GetSmemPackA<Problem>();
-
         constexpr auto DataTypeSize = sizeof(ADataType);
-        constexpr auto MLdsLayer =
-            (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
-                       number<MPerBlock / MLdsLayer>{},
-                       number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock * MLdsLayer>{}, number<1>{}),
-            number<KPack>{},
-            number<1>{});
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        {
 
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
-                                                     number<KPerBlock / KPack * MLdsLayer>{})),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+            constexpr auto MLdsLayer =
+                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
-        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
-            a_lds_block_desc_permuted,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(number<MLdsLayer>{}, number<KPerBlock / KPack>{})),
-                       make_pass_through_transform(number<MPerBlock / MLdsLayer>{}),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
+                           number<MPerBlock / MLdsLayer>{},
+                           number<KPack>{}),
+                make_tuple(number<KPack>{}, number<KPerBlock * MLdsLayer>{}, number<1>{}),
+                number<KPack>{},
+                number<1>{});
 
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform_v3_division_mod(
-                           make_tuple(number<MPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+                a_lds_block_desc_0,
+                make_tuple(make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
+                                                         number<KPerBlock / KPack * MLdsLayer>{})),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-        return a_lds_block_desc;
+            constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+                a_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(
+                               make_tuple(number<MLdsLayer>{}, number<KPerBlock / KPack>{})),
+                           make_pass_through_transform(number<MPerBlock / MLdsLayer>{}),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+
+            constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+                a_lds_block_desc_xk0_mnldslayer_mn_xk1,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(number<MPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return a_lds_block_desc;
+        }
+#if 0
+        else    // A is in ColumnMajor
+        {
+            // kfold and mpair dimension is not always required.
+            // more dimension in merge_transform increase the difficulty of generating immarg offset
+            // for compiler.
+            constexpr auto M0 = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I1);
+            constexpr auto M1 = MPerBlock / M0;
+
+            constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
+            constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
+            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
+
+            constexpr auto kfold = (AK1Number * M0 * sizeof(ADataType) > 128)
+                                       ? 1
+                                       : 128 / (AK1Number * M0 * sizeof(ADataType));
+            constexpr auto KThreadReadPerm =
+                (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                    ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+                    : KThreadRead;
+
+            // 1<=mpair<=n0
+            constexpr auto mpair = (AK1Number * MPerXdl * sizeof(ADataType) > 128)
+                                       ? 1
+                                       : ((128 / (AK1Number * MPerXdl * sizeof(ADataType))) > M0
+                                              ? M0
+                                              : 128 / (AK1Number * MPerXdl * sizeof(ADataType)));
+
+            constexpr auto a_lds_block_desc = make_naive_tensor_descriptor_packed(
+                make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
+                           Number<K0PerThreadWrite>{},
+                           Number<KThreadReadPerm * M1>{},
+                           Number<kfold * M0 / mpair>{},
+                           Number<mpair>{},
+                           AK1Number));
+
+            constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+                a_lds_block_desc,
+                make_tuple(
+                    make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
+                    make_pass_through_transform(Number<K0PerThreadWrite>{}),
+                    make_xor_with_modulo_transform(
+                        make_tuple(Number<KThreadReadPerm * M1>{}, Number<kfold * M0 / mpair>{})),
+                    make_pass_through_transform(Number<mpair>{}),
+                    make_pass_through_transform(AK1Number)),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}),
+                make_tuple(
+                    Sequence<0>{}, Sequence<1>{}, Sequence<2, 3>{}, Sequence<4>{}, Sequence<5>{}));
+
+            constexpr auto a_lds_block_desc_unmerged = transform_tensor_descriptor(
+                a_lds_block_desc_permuted,
+                make_tuple(
+                    make_pass_through_transform(Number<KThreadWrite / kfold / KThreadReadPerm>{}),
+                    make_pass_through_transform(Number<K0PerThreadWrite>{}),
+                    make_unmerge_transform(make_tuple(Number<KThreadReadPerm>{}, Number<M1>{})),
+                    make_unmerge_transform(make_tuple(Number<kfold>{}, Number<M0 / mpair>{})),
+                    make_pass_through_transform(Number<mpair>{}),
+                    make_pass_through_transform(AK1Number)),
+                make_tuple(Sequence<0>{},
+                           Sequence<1>{},
+                           Sequence<2>{},
+                           Sequence<3>{},
+                           Sequence<4>{},
+                           Sequence<5>{}),
+                make_tuple(Sequence<1>{},
+                           Sequence<2>{},
+                           Sequence<0, 3>{},
+                           Sequence<4, 5>{},
+                           Sequence<6>{},
+                           Sequence<7>{}));
+
+            constexpr auto a_lds_block_desc_ak0_m_ak1 = transform_tensor_descriptor(
+                a_lds_block_desc_unmerged,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(Number<KThreadReadPerm>{},
+                                          Number<KThreadWrite / kfold / KThreadReadPerm>{},
+                                          Number<kfold>{},
+                                          Number<K0PerThreadWrite>{})),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(Number<M0 / mpair>{}, Number<mpair>{}, Number<M1>{})),
+                           make_pass_through_transform(AK1Number)),
+                make_tuple(Sequence<0, 1, 4, 2>{}, Sequence<5, 6, 3>{}, Sequence<7>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+
+            return a_lds_block_desc_ak0_m_ak1;
+        }
+#endif
     }
 
     /**
@@ -395,7 +489,6 @@ struct UniversalGemmPipelineAgBgCrPolicy
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
-#if 1
         // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t KPack     = GetSmemPackB<Problem>();
@@ -407,9 +500,9 @@ struct UniversalGemmPipelineAgBgCrPolicy
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0 * number<NLdsLayer>{}, number<NPerBlock / NLdsLayer>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, number<1>{}),
+                make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, I0),
                 number<KPack>{},
-                number<1>{});
+                I0);
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc_0,
@@ -436,9 +529,11 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(sequence<0>{}, sequence<1>{}));
             return b_lds_block_desc;
         }
-#else
+#if 0
         else // B is Row Major
         {
+            // Tile: 256x256x64, #threads: 256
+
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
             using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
@@ -446,36 +541,50 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                                                           NPerBlock,
                                                                           VecLoadSize,
                                                                           BTileAccessPattern>;
+            // X1 = 8
+            // X0 = 32
+            // Y1 = 2
+            // Y0 = 4
+            // Y2 = 8
 
-            constexpr auto BK0 = number<TileEncodingPattern::X1>{};
-            constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
-            // constexpr auto N0 = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I1);
+            // shuffled
+            // Ps ({Y0:4}, {Y1:2, X0:32})
+            // Ys ({X1:8, Y2:8})
+
+            // BK1
+            constexpr auto BK1 = number<TileEncodingPattern::X1>{};
+            constexpr auto BK0 = number<KPerBlock / BK1>{};
+
+            // How threads access data on N dim
             constexpr auto N0 = TileEncodingPattern::X0;
-            constexpr auto N1 = NPerBlock / N0;
+            constexpr auto N1 = TileEncodingPattern::X1;
 
             using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
             constexpr auto NPerXdl = number<WarpTile::at(I1)>{};
 
-            // constexpr auto KThreadWrite     =
-            // BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
-            constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
+            // How many elements we can write by single thread to LDS
+            constexpr auto KThreadWrite     = TileEncodingPattern::X1;
             constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / NPerXdl;
-            constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
+            
+            constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
+            constexpr auto K0PerThreadRead = BK0 / KThreadRead;
 
-            constexpr auto kfold =
-                (BK1 * N0 * sizeof(BDataType) > 128) ? 1 : 128 / (BK1 * N0 * sizeof(BDataType));
+            // check if we exceed all 32banks width - (32x4B)
+            constexpr auto LdsBanksWidth = 128;
+            constexpr auto kfold = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth) 
+                                    ? 1
+                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
             constexpr auto KThreadReadPerm =
                 (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                     ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                     : KThreadRead;
 
             // 1<=npair<=n0
-            constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > 128)
+            constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > LdsBanksWidth)
                                        ? 1
-                                       : ((128 / (BK1 * NPerXdl * sizeof(BDataType))) > N0
+                                       : ((LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType))) > N0
                                               ? N0
-                                              : 128 / (BK1 * NPerXdl * sizeof(BDataType)));
+                                              : LdsBanksWidth / (BK1 * NPerXdl * sizeof(BDataType)));
 
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
@@ -534,7 +643,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
             //     make_tuple(sequence<0, 1, 4, 2>{}, sequence<5, 6, 3>{}, sequence<7>{}),
             //     make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
-            constexpr auto b_lds_block_desc_kn = transform_tensor_descriptor(
+            constexpr auto b_lds_block_desc_nk = transform_tensor_descriptor(
                 b_lds_block_desc_unmerged,
                 make_tuple(make_merge_transform_v3_division_mod(
                                make_tuple(number<KThreadReadPerm>{},
@@ -547,24 +656,7 @@ struct UniversalGemmPipelineAgBgCrPolicy
                 make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
                 make_tuple(sequence<1>{}, sequence<0>{}));
 
-            // return b_lds_block_desc_bk0_n_bk1;
-            return b_lds_block_desc_kn;
-
-            // constexpr auto b_lds_block_desc_bk0_n_bk1 = make_naive_tensor_descriptor(
-            //     make_tuple(BK0, number<NPerBlock>{}, number<KPack>{}),
-            //     make_tuple(number<KPack>{}, number<KPerBlock>{}, number<1>{}),
-            //     number<KPack>{},
-            //     number<1>{});
-
-            // constexpr auto b_lds_block_desc = transform_tensor_descriptor(
-            //     b_lds_block_desc_bk0_n_bk1,
-            //     make_tuple(make_pass_through_transform(number<NPerBlock>{}),
-            //                make_merge_transform_v3_division_mod(make_tuple(BK0,
-            //                number<KPack>{}))),
-            //     make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            //     make_tuple(sequence<0>{}, sequence<1>{}));
-
-            // return b_lds_block_desc;
+            return b_lds_block_desc_nk;
         }
 #endif
     }

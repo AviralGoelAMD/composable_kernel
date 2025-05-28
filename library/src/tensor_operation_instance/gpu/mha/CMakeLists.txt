@@ -27,51 +27,51 @@ rocm_install(FILES ${MHA_HEADERS} DESTINATION include/ck_tile/ops)
 # headers for building lib
 file(COPY ${MHA_HEADERS} DESTINATION ${FMHA_CPP_FOLDER})
 
-set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
+# set(FMHA_KNOWN_APIS "fwd,fwd_splitkv,fwd_appendkv,bwd")
 
-# generate a list of kernels, but not actually emit files at config stage
-# Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
-# With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
-execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
-  --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
-  --api ${FMHA_KNOWN_APIS}
-  --receipt 3
-  RESULT_VARIABLE ret
-)
-if(ret AND NOT ret EQUAL 0)
-  message( FATAL_ERROR "CK Tile MHA FAILED to genrate a list of kernels via Python.")
-else()
-  file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_GEN_BLOBS)
-endif()
+# # generate a list of kernels, but not actually emit files at config stage
+# # Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
+# # With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
+# execute_process(
+#   COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
+#   --list_blobs ${FMHA_CPP_FOLDER}/blob_list.txt
+#   --api ${FMHA_KNOWN_APIS}
+#   --receipt 3
+#   RESULT_VARIABLE ret
+# )
+# if(ret AND NOT ret EQUAL 0)
+#   message( FATAL_ERROR "CK Tile MHA FAILED to genrate a list of kernels via Python.")
+# else()
+#   file(STRINGS ${FMHA_CPP_FOLDER}/blob_list.txt FMHA_GEN_BLOBS)
+# endif()
 
-# actually generate the kernel content now
-# Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
-# With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
-add_custom_command(
-  OUTPUT ${FMHA_GEN_BLOBS}
-  COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
-  --output_dir ${FMHA_CPP_FOLDER}
-  --api ${FMHA_KNOWN_APIS}
-  --receipt 3
-  COMMENT "Generating mha kernel (cpp) files now ..."
-  VERBATIM
-)
+# # actually generate the kernel content now
+# # Note: The receipt 3 arg filters the generated backwards instances to reduce compilation time.
+# # With receipt 3 set, we are generating instances for datatype == {fp16 || bfp16}, bias == {no || alibi}, deterministic == off, and dpad == dvpad.
+# add_custom_command(
+#   OUTPUT ${FMHA_GEN_BLOBS}
+#   COMMAND ${Python3_EXECUTABLE} ${FMHA_SRC_FOLDER}/generate.py
+#   --output_dir ${FMHA_CPP_FOLDER}
+#   --api ${FMHA_KNOWN_APIS}
+#   --receipt 3
+#   COMMENT "Generating mha kernel (cpp) files now ..."
+#   VERBATIM
+# )
 
-# This is done to remove path info and just
-# have filename. Since, it was cauing the cmake
-# to throw "File name too long"
-set(device_files)
-foreach(filepath IN LISTS FMHA_GEN_BLOBS)
-    get_filename_component(filename ${filepath} NAME)
-    # Append the filename to the device_files list
-    list(APPEND device_files ${filename})
-endforeach()
-add_custom_target(generate_cpp_files DEPENDS ${FMHA_GEN_BLOBS})
+# # This is done to remove path info and just
+# # have filename. Since, it was cauing the cmake
+# # to throw "File name too long"
+# set(device_files)
+# foreach(filepath IN LISTS FMHA_GEN_BLOBS)
+#     get_filename_component(filename ${filepath} NAME)
+#     # Append the filename to the device_files list
+#     list(APPEND device_files ${filename})
+# endforeach()
+# add_custom_target(generate_cpp_files DEPENDS ${FMHA_GEN_BLOBS})
 
-add_instance_library(device_mha_instance ${device_files})
+# add_instance_library(device_mha_instance ${device_files})
 
-if (TARGET device_mha_instance)
-  add_dependencies(device_mha_instance generate_cpp_files)
-endif()
+# if (TARGET device_mha_instance)
+#   add_dependencies(device_mha_instance generate_cpp_files)
+# endif()
 

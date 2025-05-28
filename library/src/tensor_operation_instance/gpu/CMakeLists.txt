@@ -362,28 +362,28 @@ if(CK_DEVICE_CONV_INSTANCES)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_MHA_INSTANCES)
-        set(gpu_list ${INST_TARGETS})
-        if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
-            add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
-            set_target_properties(device_mha_operations
-                PROPERTIES
-                VERSION ${CMAKE_PROJECT_VERSION}
-                SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-            )
-            add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
-            target_compile_features(device_mha_operations PUBLIC)
-            set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+# if(CK_DEVICE_MHA_INSTANCES)
+#         set(gpu_list ${INST_TARGETS})
+#         if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
+#             add_library(device_mha_operations ${CK_DEVICE_MHA_INSTANCES})
+#             set_target_properties(device_mha_operations
+#                 PROPERTIES
+#                 VERSION ${CMAKE_PROJECT_VERSION}
+#                 SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+#             )
+#             add_library(composablekernels::device_mha_operations ALIAS device_mha_operations)
+#             target_compile_features(device_mha_operations PUBLIC)
+#             set_target_properties(device_mha_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
             
-            rocm_install(TARGETS device_mha_operations
-                EXPORT device_mha_operationsTargets)
-            rocm_install(EXPORT device_mha_operationsTargets
-                FILE composable_kerneldevice_mha_operationsTargets.cmake
-                NAMESPACE composable_kernel::
-                DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-            )
-        endif()
-endif()
+#             rocm_install(TARGETS device_mha_operations
+#                 EXPORT device_mha_operationsTargets)
+#             rocm_install(EXPORT device_mha_operationsTargets
+#                 FILE composable_kerneldevice_mha_operationsTargets.cmake
+#                 NAMESPACE composable_kernel::
+#                 DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+#             )
+#         endif()
+# endif()
 if(CK_DEVICE_CONTRACTION_INSTANCES)
         add_library(device_contraction_operations ${CK_DEVICE_CONTRACTION_INSTANCES})
         add_library(composablekernels::device_contraction_operations ALIAS device_contraction_operations)

@@ -19,7 +19,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 {
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -251,53 +251,53 @@ template <typename APrecType, typename BPrecType = APrecType, typename CPrecType
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    // using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    // if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    // {
+    //     if(a_layout == "R" && b_layout == "C")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Row{}, Col{}, Row{});
+    //     }
+    //     else if(a_layout == "C" && b_layout == "C")
+    //     {
+    //         return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //             argc, argv, Col{}, Col{}, Row{});
+    //     }
+    //     else
+    //     {
+    //         throw std::runtime_error("Unsupported memory layout for the input matrices when "
+    //                                  "BPrecType is ck_tile::pk_int4_t!");
+    //     }
+    // }
+    // else
+    // {
+    if(a_layout == "R" && b_layout == "R")
     {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
+        return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+            argc, argv, Row{}, Row{}, Row{});
     }
+    // else if(a_layout == "R" && b_layout == "C")
+    // {
+    //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //         argc, argv, Row{}, Col{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "R")
+    // {
+    //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //         argc, argv, Col{}, Row{}, Row{});
+    // }
+    // else if(a_layout == "C" && b_layout == "C")
+    // {
+    //     return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
+    //         argc, argv, Col{}, Col{}, Row{});
+    // }
     else
     {
-        if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_example_with_layouts<APrecType, BPrecType, CPrecType>(
-                argc, argv, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
+        throw std::runtime_error("Unsupported memory layout for the input matrices!");
     }
+    // }
 }
 
 int run_gemm_example(int argc, char* argv[])
@@ -314,29 +314,30 @@ int run_gemm_example(int argc, char* argv[])
     {
         return run_gemm_example_prec_type<ck_tile::half_t>(a_layout, b_layout, argc, argv);
     }
-    else if(data_type == "bf16")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "bf8")
-    {
-        return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
+    //     else if(data_type == "bf16")
+    //     {
+    //         return run_gemm_example_prec_type<ck_tile::bf16_t>(a_layout, b_layout, argc, argv);
+    //     }
+    //     else if(data_type == "fp8")
+    //     {
+    //         return run_gemm_example_prec_type<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>(
+    //             a_layout, b_layout, argc, argv);
+    //     }
+    //     else if(data_type == "bf8")
+    //     {
+    //         return run_gemm_example_prec_type<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>(
+    //             a_layout, b_layout, argc, argv);
+    //     }
 
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
-    else if(data_type == "pk_int4_t")
-    {
-        // TODO: Add support for bhalf_t ADataType
-        return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-#endif
+    // #if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V3)
+    //     else if(data_type == "pk_int4_t")
+    //     {
+    //         // TODO: Add support for bhalf_t ADataType
+    //         return run_gemm_example_prec_type<ck_tile::half_t, ck_tile::pk_int4_t,
+    //         ck_tile::half_t>(
+    //             a_layout, b_layout, argc, argv);
+    //     }
+    // #endif
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
