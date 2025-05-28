@@ -64,8 +64,8 @@ struct TileDistributionEncodingPattern2D : public TileDistributionEncodingPatter
 // Thread raked
 template <index_t BlockSize, index_t YPerTile, index_t XPerTile, index_t VecSize>
 struct TileDistributionEncodingPattern2D<BlockSize,
-                                         YPerTile,
-                                         XPerTile,
+                                         YPerTile,  // not contiguous (K for B in RowMajor)
+                                         XPerTile,  // contiguous (N for B in RowMajor)
                                          VecSize,
                                          tile_distribution_pattern::thread_raked>
     : public TileDistributionEncodingPattern
@@ -85,7 +85,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
     static constexpr index_t Y0 = num_warps;
     //  YPerWarp = YPerTile / Y0;
     //  Y2 = YPerWarp / Y1;
-    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters within wavefront
+    static constexpr index_t Y2 = YPerTile / (Y1 * Y0); // # of iters per thread
 
     static_assert(X0 * Y1 * Y0 == BlockSize, "X0 * warp_ys * Y0 must cover whole workgroup!");
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
