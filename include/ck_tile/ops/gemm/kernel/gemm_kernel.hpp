@@ -9,9 +9,17 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
+#include "ck_tile/host/stream_utils.hpp"
+#include "ck_tile/core/utility/env.hpp"
+#include "ck_tile/core/utility/type_traits.hpp"
 
 namespace ck_tile {
 
+/// @brief The GEMM problem definition.
+///
+/// @par Overview
+///      This structure defines the GEMM problem configuration by stating all required information
+///      like M,N,K sizes and respective strides.
 struct GemmProblem
 {
     CK_TILE_HOST GemmProblem() = default;
@@ -29,6 +37,12 @@ struct GemmProblem
     index_t stride_C;
 };
 
+/// @brief The GEMM kernel host arguments.
+///
+/// @par Overview
+///      This structure is passed to @ref GemmKernel "GemmKernel" when creating kernel arguments
+///      object. It contain all necessary information required to build proper kernel argument
+///      and launch kernel on GPU.
 struct GemmHostArgs : public GemmProblem
 {
     CK_TILE_HOST GemmHostArgs() = default;
@@ -56,20 +70,69 @@ struct GemmHostArgs : public GemmProblem
     index_t k_batch;
 };
 
+/// @brief The GEMM kernel device arguments.
 struct GemmKernelArgs
 {
+    /// @brief The A input tensor's pointer to device memory.
     const void* a_ptr;
+    /// @brief The B input tensor's pointer to device memory.
     const void* b_ptr;
+    /// @brief The C output tensor's pointer to device memory.
     void* c_ptr;
+    /// @brief GEMM's M dimension size.
     index_t M;
+    /// @brief GEMM's N dimension size.
     index_t N;
+    /// @brief GEMM's K dimension size.
     index_t K;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of A tensor.
     index_t stride_A;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of B tensor.
     index_t stride_B;
+    /// @brief The distance between consecutive elements of non-contiguous dimension
+    ///        (in memory) of C tensor.
     index_t stride_C;
     index_t k_batch;
 };
 
+/// @brief The GEMM kernel template.
+///
+/// @paragraph Overview Overview
+///            This class provides the generic matrix multiplication kernel template. By semantic
+///            division of GEMM algorithm into following parts we achieve flexible, versatile
+///            and robust kernel implementation.
+///
+///            @li @b Prolog - The start of GEMM kernel implementation in @ref operator()
+///                function call operator" which determines the work scope of each workgroup.
+///            @li @b GemmPipeline - The core part @a "heart" of matrix multiplication algorithm.
+///                This is the place where each workgroup is loading data from global memory and
+///                carrying out dot products.
+///            @li @b Epilogue - The @a "final" part of matrix multiplication implementation
+///                 responsible for storing results to global memory. This is also the place where
+///                 any additional operator fusion may take place.
+///
+///            Additionally both @ref GemmPipeline_ "GemmPipeline" and @ref EpiloguePipeline_
+///            "EpiloguePipeline" are parameterized with so called @a Policy which determines all
+///            internal details of those functional parts. You can think of it like both gemm and
+///            epilogue pipelines provides the control-flow logic controlled by policies. Moreover
+///            the policy is responsible for definition of all necessary data layouts and thread's
+///            work distribution.
+///
+/// @tparam TilePartitioner_    The type of class providing mapping of workgroup index into the
+///                             output data tile to be calculated. It determines the workgroup to
+///                             data relationship (or in other words - which data would be
+///                             processed and calculated by which workgroup).
+/// @tparam GemmPipeline_       The type of class which provides the core part of matrix
+///                             multiplication. This class should provide implementation of data
+///                             loading from global memory and performing block-wise matrix
+///                             multiplication. You can think of it as a work done by single
+///                             workgroup point of view.
+/// @tparam EpiloguePipeline_   The type of class providing the final part of matrix
+///                             multiplication implementation. It is responsible for storing
+///                             results calculated by @ref GemmPipeline_ "GemmPipeline" to
+///                             the output C tensor in global memory.
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct GemmKernel
 {
@@ -80,6 +143,21 @@ struct GemmKernel
     using BLayout                            = remove_cvref_t<typename GemmPipeline::BLayout>;
     using CLayout                            = remove_cvref_t<typename GemmPipeline::CLayout>;
     static constexpr index_t KernelBlockSize = GemmPipeline::BlockSize;
+
+    // Get the persistent kernel if the pipeline has it available
+    struct has_persistent_kernel
+    {
+        template <typename T>
+        using has_persistent_type = decltype(T::UsePersistentKernel);
+
+        static constexpr bool value = []() {
+            if constexpr(is_detected<has_persistent_type, GemmPipeline>{})
+                return GemmPipeline::UsePersistentKernel;
+            else
+                return false;
+        }();
+    };
+    static constexpr bool PersistentKernel = has_persistent_kernel::value;
 
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
@@ -100,6 +178,23 @@ struct GemmKernel
     CK_TILE_HOST static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
+    }
+
+    /**
+     * @brief Get the maximum occupancy grid size for the persistent kernel on the current device.
+     * @return The maximum occupancy grid size.
+     * @note This function queries the maximum occupancy of the kernel using
+     *       `hipOccupancyMaxActiveBlocksPerMultiprocessor`.
+     */
+    CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
+    {
+        using Kernel      = GemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+        const auto kernel = kentry<KernelBlockSize, 1, Kernel, GemmKernelArgs>;
+        int occupancy;
+        hip_check_error(
+            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, KernelBlockSize, 0));
+        const int grid_size = get_available_compute_units(s) * occupancy;
+        return dim3(grid_size, 1, 1);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
@@ -547,9 +642,7 @@ struct GemmKernel
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
-     * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm(const ADataType* a_ptr,
                                        const BDataType* b_ptr,
                                        CDataType* c_ptr,
@@ -561,7 +654,8 @@ struct GemmKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
 
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
@@ -579,9 +673,8 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window, c_block_tile, smem_ptr_0);
     }
 
     /**
@@ -599,9 +692,7 @@ struct GemmKernel
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
-     * @tparam DstInMemOp Destination memory operation (default: set).
      */
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
     CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
                                            const BDataType* b_ptr,
                                            CDataType* c_ptr,
@@ -614,7 +705,8 @@ struct GemmKernel
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
-            MakeGemmTensorViews<DstInMemOp>(a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
+            MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, c_ptr, kargs, splitk_batch_offset);
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
@@ -631,11 +723,12 @@ struct GemmKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I2);
 
-        EpiloguePipeline{}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile), DstInMemOp>(
-                c_block_window, c_block_tile, smem_ptr_0);
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window, c_block_tile, smem_ptr_0);
     }
 
+    // Non-persistent kernel entry point
+    template <bool U = !PersistentKernel, typename = std::enable_if_t<U>>
     CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
     {
         const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
@@ -657,7 +750,9 @@ struct GemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if(kargs.k_batch == 1)
+            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                           is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm2LDS(a_ptr,
                             b_ptr,
@@ -669,37 +764,82 @@ struct GemmKernel
                             i_m,
                             i_n);
             }
-            else
-            {
-                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                               is_any_of<CDataType, fp16_t, bf16_t>::value))
-                {
-                    RunGemm2LDS<memory_operation_enum::atomic_add>(a_ptr,
-                                                                   b_ptr,
-                                                                   c_ptr,
-                                                                   smem_ptr_0,
-                                                                   smem_ptr_1,
-                                                                   kargs,
-                                                                   splitk_batch_offset,
-                                                                   i_m,
-                                                                   i_n);
-                }
-            }
         }
         else
         {
-            if(kargs.k_batch == 1)
+            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
+                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                           is_any_of<CDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
-            else
+        }
+    }
+
+    // Persistent kernel entry point
+    template <bool U = PersistentKernel, typename = std::enable_if_t<U>, typename = void>
+    CK_TILE_DEVICE void operator()(GemmKernelArgs kargs) const
+    {
+        const auto grid_size = __builtin_amdgcn_readfirstlane(get_grid_size());
+        const auto num_tiles =
+            __builtin_amdgcn_readfirstlane(TilePartitioner::GridSize(kargs.M, kargs.N));
+        const auto num_work = __builtin_amdgcn_readfirstlane(num_tiles * kargs.k_batch);
+        auto block_id       = __builtin_amdgcn_readfirstlane(get_block_id());
+
+        while(block_id < num_work)
+        {
+            // Get the tile index for this block
+            const auto tile_idx = __builtin_amdgcn_readfirstlane(block_id % num_tiles);
+            const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(tile_idx);
+            const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+            const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+
+            // Get the SplitK offset for this block
+            const auto k_batch = __builtin_amdgcn_readfirstlane(block_id / num_tiles);
+            const SplitKBatchOffset splitk_batch_offset(kargs, k_batch);
+            const ADataType* a_ptr =
+                static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+            const BDataType* b_ptr =
+                static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+            CDataType* c_ptr = static_cast<CDataType*>(kargs.c_ptr);
+
+            // allocate LDS
+            __shared__ char smem_ptr_0[GetSmemSize()];
+            // Run the GEMM
+            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
             {
-                if constexpr(!(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                __shared__ char smem_ptr_1[GetSmemSize()];
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
                                is_any_of<CDataType, fp16_t, bf16_t>::value))
                 {
-                    RunGemm<memory_operation_enum::atomic_add>(
-                        a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                    RunGemm2LDS(a_ptr,
+                                b_ptr,
+                                c_ptr,
+                                smem_ptr_0,
+                                smem_ptr_1,
+                                kargs,
+                                splitk_batch_offset,
+                                i_m,
+                                i_n);
                 }
+            }
+            else
+            {
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
+                               is_any_of<CDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm(a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                }
+            }
+            // Advance to the next work item
+            block_id += grid_size;
+            if(block_id >= num_work)
+            {
+                break;
             }
         }
     }
