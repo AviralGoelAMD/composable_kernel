@@ -28,7 +28,7 @@ struct ProblemSize final
 {
     ck::index_t M = 3840;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 2048;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -39,7 +39,7 @@ struct ProblemSizeStreamK final
 {
     ck::index_t M = 3840;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 2048;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -51,7 +51,7 @@ struct ProblemSizeStreamK_universal final
 {
     ck::index_t M = 3840;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 2048;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
@@ -65,7 +65,7 @@ struct ProblemSizeSplitK final
 {
     ck::index_t M = 3840;
     ck::index_t N = 4096;
-    ck::index_t K = 4096;
+    ck::index_t K = 2048;
 
     ck::index_t StrideA = -1;
     ck::index_t StrideB = -1;
