@@ -119,19 +119,16 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         float ave_time{0};
         if(s.flush_cache_)
         {
+            //args, Alyaout, Blayout, kargs.a_ptr, kargs.b_shuffle_ptr, stream
             std::cout << "Flushing cache..." << std::endl;
-            static constexpr ck_tile::index_t APackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-            static constexpr ck_tile::index_t BPackedSize =
-                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
             ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
                 args.M, args.K, args.stride_A, is_row_major(ALayout{})));
             ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
                 args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
             ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
                 kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
