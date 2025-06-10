@@ -177,48 +177,48 @@ struct UniversalGemmBasePolicy
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
+#if 0
         // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
-        // {
-        //     constexpr index_t KPack     = GetSmemPackB<Problem>();
-        //     constexpr auto BK0          = number<KPerBlock / KPack>{};
-        //     constexpr auto DataTypeSize = sizeof(BDataType);
-        //     constexpr auto NLdsLayer =
-        //         (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
+        {
+            constexpr index_t KPack     = GetSmemPackB<Problem>();
+            constexpr auto BK0          = number<KPerBlock / KPack>{};
+            constexpr auto DataTypeSize = sizeof(BDataType);
+            constexpr auto NLdsLayer =
+                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
-        //     constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
-        //         make_tuple(
-        //             BK0 * number<NLdsLayer>{}, number<NPerBlock / NLdsLayer>{}, number<KPack>{}),
-        //         make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, I0),
-        //         number<KPack>{},
-        //         I0);
+            constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(
+                    BK0 * number<NLdsLayer>{}, number<NPerBlock / NLdsLayer>{}, number<KPack>{}),
+                make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, I0),
+                number<KPack>{},
+                I0);
 
-        //     constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
-        //         b_lds_block_desc_0,
-        //         make_tuple(make_xor_transform(make_tuple(number<NPerBlock / NLdsLayer>{},
-        //                                                  BK0 * number<NLdsLayer>{})),
-        //                    make_pass_through_transform(number<KPack>{})),
-        //         make_tuple(sequence<1, 0>{}, sequence<2>{}),
-        //         make_tuple(sequence<1, 0>{}, sequence<2>{}));
+            constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
+                b_lds_block_desc_0,
+                make_tuple(make_xor_transform(make_tuple(number<NPerBlock / NLdsLayer>{},
+                                                         BK0 * number<NLdsLayer>{})),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-        //     constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
-        //         b_lds_block_desc_permuted,
-        //         make_tuple(make_unmerge_transform(make_tuple(number<NLdsLayer>{}, BK0)),
-        //                    make_pass_through_transform(number<NPerBlock / NLdsLayer>{}),
-        //                    make_pass_through_transform(number<KPack>{})),
-        //         make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-        //         make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+            constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
+                b_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(make_tuple(number<NLdsLayer>{}, BK0)),
+                           make_pass_through_transform(number<NPerBlock / NLdsLayer>{}),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
-        //     constexpr auto b_lds_block_desc = transform_tensor_descriptor(
-        //         b_lds_block_desc_bk0_nldslayer_n_bk1,
-        //         make_tuple(make_merge_transform_v3_division_mod(
-        //                        make_tuple(number<NPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
-        //                    make_merge_transform_v3_division_mod(make_tuple(BK0, number<KPack>{}))),
-        //         make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
-        //         make_tuple(sequence<0>{}, sequence<1>{}));
-        //     return b_lds_block_desc;
-        // }
-#if 1
+            constexpr auto b_lds_block_desc = transform_tensor_descriptor(
+                b_lds_block_desc_bk0_nldslayer_n_bk1,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(number<NPerBlock / NLdsLayer>{}, number<NLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(make_tuple(BK0, number<KPack>{}))),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+            return b_lds_block_desc;
+        }
+#else
         // else // B is Row Major
         {
             // Tile: 256x256x64, #threads: 256
