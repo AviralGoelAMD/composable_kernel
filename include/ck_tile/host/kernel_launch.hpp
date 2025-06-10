@@ -8,6 +8,7 @@
 #include "ck_tile/host/hip_check_error.hpp"
 #include "ck_tile/host/timer.hpp"
 #include <hip/hip_runtime.h>
+#include "ck_tile/host/rotating_buffers.hpp"
 #include <cstddef>
 
 namespace ck_tile {
@@ -123,16 +124,54 @@ CK_TILE_HOST float launch_kernel(const stream_config& s, Callables&&... callable
     }
 }
 
-template <typename PreprocessFunc, typename... Callables>
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename Argument,
+          typename... Callables>
 CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
-                                            PreprocessFunc preprocess,
+                                            Argument& args,
+                                            const void* a_ptr,
+                                            const void* b_ptr,
                                             Callables&&... callables)
 {
     static_assert(sizeof...(callables) > 0, "At least one callable is required!");
+    printf("From launch kernel function \n");
+    ck_tile::HostTensor<ADataType> a_m(
+        ck_tile::host_tensor_descriptor(args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+    ck_tile::HostTensor<BDataType> b_n(
+        ck_tile::host_tensor_descriptor(args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+
+    auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+    auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+
+    ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+        a_ptr, b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+    rotating_mem.Print();
+
+    auto run_flush_cache = [&]() {
+        // flush icache
+        ck_tile::flush_icache();
+        // rotating mem
+        rotating_mem.Next();
+        // clear c mem
+        if(args.k_batch > 1)
+            hipGetErrorString(
+                hipMemsetAsync(args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+    };
 
     if(!s.time_kernel_)
     {
-        preprocess();
+        run_flush_cache();
         launch_and_check(s, std::forward<Callables>(callables)...);
         return 0;
     }
@@ -147,7 +186,7 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
         timer.start(s.stream_id_);
         for(int i = 0; i < s.nrepeat_; i++)
         {
-            preprocess();
+            run_flush_cache();
             launch_and_check(s, std::forward<Callables>(callables)...);
         }
         timer.stop(s.stream_id_);

@@ -93,36 +93,46 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
         float ave_time{0};
         if(s.flush_cache_)
         {
-            //args, Alyaout, Blayout, kargs.a_ptr, kargs.b_shuffle_ptr, stream
+            // args, Alyaout, Blayout, kargs.a_ptr, kargs.b_shuffle_ptr, stream
+
             std::cout << "Flushing cache..." << std::endl;
+            ave_time = ck_tile::
+                launch_kernel_preprocess<ADataType, BDataType, CDataType, ALayout, BLayout>(
+                    s,
+                    args,
+                    kargs.a_ptr,
+                    kargs.b_shuffle_ptr,
+                    ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                        Kernel{}, grids, blocks, 0, kargs));
 
-            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+            // ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+            //     args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            // ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+            //     args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
-            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+            // auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            // auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-                kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-            rotating_mem.Print();
+            // ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+            //     kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer,
+            //     size_b_buffer);
+            // rotating_mem.Print();
 
-            auto run_flush_cache = [&]() {
-                // flush icache
-                ck_tile::flush_icache();
-                // rotating mem
-                rotating_mem.Next();
-                // clear c mem
-                if(args.k_batch > 1)
-                    hipGetErrorString(hipMemsetAsync(
-                        args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-            };
-            ave_time = ck_tile::launch_kernel_preprocess(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+            // auto run_flush_cache = [&]() {
+            //     // flush icache
+            //     ck_tile::flush_icache();
+            //     // rotating mem
+            //     rotating_mem.Next();
+            //     // clear c mem
+            //     if(args.k_batch > 1)
+            //         hipGetErrorString(hipMemsetAsync(
+            //             args.c_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            // };
+            // ave_time = ck_tile::launch_kernel_preprocess(
+            //     s,
+            //     run_flush_cache,
+            //     ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+            //         Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
