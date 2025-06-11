@@ -9,6 +9,7 @@
 #include "ck_tile/host/timer.hpp"
 #include <hip/hip_runtime.h>
 #include "ck_tile/host/rotating_buffers.hpp"
+#include "ck_tile/host/host_tensor.hpp"
 #include <cstddef>
 
 namespace ck_tile {
@@ -146,6 +147,7 @@ CK_TILE_HOST float launch_kernel_preprocess(const stream_config& s,
 {
     static_assert(sizeof...(callables) > 0, "At least one callable is required!");
     printf("From launch kernel function \n");
+
     ck_tile::HostTensor<ADataType> a_m(
         ck_tile::host_tensor_descriptor(args.M, args.K, args.stride_A, is_row_major(ALayout{})));
     ck_tile::HostTensor<BDataType> b_n(
