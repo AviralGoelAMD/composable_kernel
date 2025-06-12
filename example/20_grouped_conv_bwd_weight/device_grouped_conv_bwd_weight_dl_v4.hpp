@@ -67,7 +67,7 @@ __launch_bounds__(BlockSize, MinimumOccupancy)
     __shared__ char p_share_out[GridwiseConvBwdWeight::ShareMemOutSize *
                                 GridwiseConvBwdWeight::NumTilePerBlock];
 
-    GridwiseConvBwdWeight::template Run(arg, p_share_in, p_share_out);
+    GridwiseConvBwdWeight::template Run<>(arg, p_share_in, p_share_out);
 }
 
 template <typename WeiDataType, typename AccDataType, index_t FilterSize>
@@ -1291,12 +1291,50 @@ struct DeviceGroupedConvBwdWeightDlV4 : public DeviceGroupedConvBwdWeight<NDimSp
         if(filter_y != FilterSize || filter_x != FilterSize)
         {
             return false;
-        }
-        if(Pad_H != arg.input_left_pads_[0] || Pad_W != arg.input_left_pads_[1] ||
-           Pad_H != arg.input_right_pads_[0] || Pad_W != arg.input_right_pads_[1])
+        }    
+        if(Pad_H != arg.input_left_pads_[0] || Pad_W != arg.input_left_pads_[1])
         {
             return false;
         }
+        if(Pad_H != arg.input_right_pads_[0])
+        {
+            if(Stride_H == 2 && Pad_H > 0)
+            {
+                index_t alter_pad_h = Pad_H;
+                if((Tile_H + Pad_H + Pad_H - ((FilterSize - 1) * Dilation_Y + 1)) % Stride_H != 0)
+                {
+                    alter_pad_h = Pad_H - 1;
+                }
+                if(alter_pad_h != arg.input_right_pads_[0])
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        if(Pad_W != arg.input_right_pads_[1])
+        {
+            if(Stride_W == 2 && Pad_W > 0)
+            {
+                index_t alter_pad_w = Pad_W;
+                if((Tile_W + Pad_W + Pad_W - ((FilterSize - 1) * Dilation_X + 1)) % Stride_W != 0)
+                {
+                    alter_pad_w = Pad_W - 1;
+                }
+                if(alter_pad_w != arg.input_right_pads_[1])
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+
         if(Stride_H != arg.conv_filter_strides_[0] || Stride_W != arg.conv_filter_strides_[1])
         {
             return false;
