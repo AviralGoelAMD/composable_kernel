@@ -18,6 +18,7 @@
 #include "ck/tensor_operation/gpu/device/matrix_padder.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
+template <typename X> struct Debug;
 namespace ck {
 
 // GEMM:
@@ -573,6 +574,8 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         // B matrix in LDS memory, dst of blockwise copy
         constexpr auto b_block_desc_bk0_n_bk1 = GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1();
 
+        //Debug<Sequence<AK0PerBlock, MPerBlock, AK1>> xx1;
+        //Debug< Sequence<BK0PerBlock, NPerBlock, BK1>> xx2;
         // A matrix blockwise copy
         auto a_blockwise_copy =
             ThreadGroupTensorSliceTransfer_v4r1<ThisThreadBlock,

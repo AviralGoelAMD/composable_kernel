@@ -89,7 +89,12 @@ using DeviceConvFwdInstance =
         OutElementOp,
         ConvSpec,    // ConvForwardSpecialization
         GemmSpec,    // GemmSpecialization    
-        1,   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
+        1,   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,   
+       // ABlockTransferThreadClusterLengths_AK0_M_AK1   ABlockTransferThreadClusterArrangeOrder     ABlockTransferSrcAccessOrder    ABlockTransferSrcVectorDim     ABlockTransferSrcScalarPerVector     ABlockTransferDstScalarPerVector_AK1      ABlockLdsExtraM  
+        S<4, 8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,     
+        S<4, 8, 8>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,
+        1,           1,
+         S<1, 32, 1, 8>,               1>;
 
 #include "run_grouped_conv_fwd_example.inc"
 

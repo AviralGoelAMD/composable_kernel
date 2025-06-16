@@ -64,7 +64,7 @@ struct CommonLayoutSettingSelector<1> final
 
 template <>
 struct CommonLayoutSettingSelector<2> final
-    : CommonLayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>
+    : CommonLayoutSetting<ctl::GNCHW, ctl::GKCYX, ctl::GNKHW>
 {
 };
 

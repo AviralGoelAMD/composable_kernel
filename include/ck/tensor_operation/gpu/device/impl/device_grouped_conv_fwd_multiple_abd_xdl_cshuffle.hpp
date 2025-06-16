@@ -314,6 +314,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
 
+    static constexpr bool NeedTranspose =
+        (ConvForwardSpecialization != ConvolutionForwardSpecialization::Filter1x1Stride1Pad0) &&
+        (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>);
+         
     // NGCHW is not supported for multiAB
     static_assert(!(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                     is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) ||
@@ -330,12 +335,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     static constexpr auto I4 = Number<4>{};
     static constexpr auto I5 = Number<5>{};
 
+    static constexpr bool ForceSplitN = (ConvForwardSpecialization == ConvolutionForwardSpecialization::Filter1x1Stride1Pad0) &&
+        (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
+         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>);;
+
     using ConvToGemmFwdTransformer = TransformConvFwdToGemm<NDimSpatial,
                                                             ConvForwardSpecialization,
                                                             true /*SplitN*/,
                                                             ADataType,
                                                             EDataType,
-                                                            NumGroupsToMerge>;
+                                                            NumGroupsToMerge,ForceSplitN>;
 
     static constexpr index_t ClusterLengthNPerBlock =
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(3);
@@ -356,9 +365,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>(),
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTranspose,
             ctc::NHWGC,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>(), ctc::NDHWGC, ALay>>;
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTranspose, ctc::NDHWGC, ALay>>;
 
         const auto in_gemmmraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeADescriptor_M_K<Layout>();
@@ -374,9 +383,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>(),
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTranspose,
             ctc::GKYXC,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>(), ctc::GKZYXC, BLay>>;
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTranspose, ctc::GKZYXC, BLay>>;
 
         const auto wei_gemmnraw_gemmkraw_desc =
             conv_to_gemm_transformer.template MakeBDescriptor_N_K<Layout>();
@@ -392,9 +401,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     {
         namespace ctc = tensor_layout::convolution;
         using Layout  = std::conditional_t<
-            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>(),
+            is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() && NeedTranspose,
             ctc::NHWGK,
-            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>(), ctc::NDHWGK, ELay>>;
+            std::conditional_t<is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>() && NeedTranspose, ctc::NDHWGK, ELay>>;
 
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();
@@ -794,8 +803,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 }
             }
 
-            if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose)
             {
                 // Use not modified base strides
                 a_in_transpose_desc_ =
@@ -830,8 +838,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         std::size_t GetWorkspaceATensorSizeBytes() const
         {
-            if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose)
             {
                 const long_index_t a_acum = ck::accumulate_n<long_index_t>(
                     a_g_n_c_wis_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
@@ -846,8 +853,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         std::size_t GetWorkspaceBTensorSizeBytes() const
         {
-            if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose) 
             {
                 const long_index_t b_acum = ck::accumulate_n<long_index_t>(
                     b_g_k_c_xs_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
@@ -862,8 +868,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
         std::size_t GetWorkspaceETensorSizeBytes() const
         {
-            if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose)
             {
                 const long_index_t e_accum = ck::accumulate_n<long_index_t>(
                     e_g_n_k_wos_lengths_.begin(), NDimSpatial + I3, 1, std::multiplies<>());
@@ -1030,7 +1035,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                     const ADataType* p_a_grid = arg.p_as_grid_.At(I0);
                     const BDataType* p_b_grid = arg.p_bs_grid_.At(I0);
                     EDataType* p_e_grid       = arg.p_e_grid_;
-
+                    if constexpr (NeedTranspose)
+                    {
                     if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
                                  is_NGCDHW_GKCZYX_NGKDHW<ALayout, BLayout, ELayout>())
                     {
@@ -1051,7 +1057,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                     arg.GetWorkspaceBTensorSizeBytes()) /
                                        sizeof(EDataType);
                     }
-
+                    }
                     const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                         GridwiseGemm,
                         const ADataType*,
@@ -1109,8 +1115,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             float avg_time = 0.f;
 
-            if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose)
             {
                 const index_t a_grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_a_.CalculateGridSize(
@@ -1161,8 +1166,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 
             avg_time += RunGemm(arg, stream_config);
 
-            if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+            if constexpr(NeedTranspose)
             {
                 const index_t grid_size =
                     arg.elementwise_block_2_ctile_map_transpose_e_.CalculateGridSize(

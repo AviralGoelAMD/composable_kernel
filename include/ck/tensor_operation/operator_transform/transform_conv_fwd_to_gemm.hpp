@@ -19,6 +19,7 @@ template <index_t NDimSpatial,
           typename ADataType       = float,
           typename CDataType       = float,
           index_t NumGroupsToMerge = 1,
+          bool ForceSplitN         = false,
           typename IndexType       = index_t>
 struct TransformConvFwdToGemm
 {
@@ -60,39 +61,45 @@ struct TransformConvFwdToGemm
         constexpr long_index_t TwoGB          = (long_index_t{1} << 31);
 
         const IndexType N = a_g_n_c_wis_lengths[I1];
-
-        if(element_space_size > TwoGB)
+        if constexpr (ForceSplitN)
         {
-            // Minimum divisor of N to not exceed 2GB
-            const auto divisor = math::integer_divide_ceil(element_space_size, TwoGB);
-
-            if(divisor <= static_cast<double>(N))
-            {
-                // Find least divisor of N larger than element_space_size / TwoGB
-                // Iterate up to sqrt(N). There are no divisors above this value.
-                for(IndexType least_divisor = divisor; least_divisor * least_divisor <= N;
-                    least_divisor++)
-                {
-                    if(N % least_divisor == 0)
-                    {
-                        return N / least_divisor;
-                    }
-                }
-                // Not found, process one Convolution N per block
-                return 1;
-            }
-            else
-            {
-                // Split Convolution's N dimension into N workgroups. However
-                // this still might not result in sufficiently small tensor,
-                // but at least later on we could divide the image as well.
-                return 1;
-            }
+            return 1;
         }
         else
         {
-            // Split N is not needed.
-            return N;
+            if(element_space_size > TwoGB)
+            {
+                // Minimum divisor of N to not exceed 2GB
+                const auto divisor = math::integer_divide_ceil(element_space_size, TwoGB);
+
+                if(divisor <= static_cast<double>(N))
+                {
+                    // Find least divisor of N larger than element_space_size / TwoGB
+                    // Iterate up to sqrt(N). There are no divisors above this value.
+                    for(IndexType least_divisor = divisor; least_divisor * least_divisor <= N;
+                        least_divisor++)
+                    {
+                        if(N % least_divisor == 0)
+                        {
+                            return N / least_divisor;
+                        }
+                    }
+                    // Not found, process one Convolution N per block
+                    return 1;
+                }
+                else
+                {
+                    // Split Convolution's N dimension into N workgroups. However
+                    // this still might not result in sufficiently small tensor,
+                    // but at least later on we could divide the image as well.
+                    return 1;
+                }
+            }
+            else
+            {
+                // Split N is not needed.
+                return N;
+            }
         }
     }
 
@@ -704,6 +711,58 @@ struct TransformConvFwdToGemm
 
     template <typename ALayout,
               typename ck::enable_if<NDimSpatial == 2 &&
+                                         (is_same_v<ALayout, tensor_layout::convolution::GNCHW> ||
+                                          is_same_v<ALayout, tensor_layout::convolution::NGCHW>),
+                                     bool>::type = false>
+    __host__ __device__ auto MakeADescriptor_M_K() const
+
+    {
+        static_assert(NumGroupsToMerge == 1);
+        static_assert(ConvForwardSpecialization == device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0);
+        if constexpr(ConvForwardSpecialization ==
+                     device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
+                make_tuple(Ho_, Wo_, C_),
+                make_tuple(HiStride_, WiStride_, CStrideTensorA_));
+
+            return transform_tensor_descriptor(
+                in_gemmm_gemmk_desc,
+                make_tuple(make_merge_transform(make_tuple(Ho_, Wo_)),
+                            make_pass_through_transform(C_)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+    }
+
+    template <typename ALayout,
+              typename ck::enable_if<
+                  NDimSpatial == 3 && (is_same_v<ALayout, tensor_layout::convolution::GNCDHW> ||
+                                       is_same_v<ALayout, tensor_layout::convolution::NGCDHW>),
+                  bool>::type = false>
+    __host__ __device__ auto MakeADescriptor_M_K() const
+    {
+        static_assert(NumGroupsToMerge == 1);
+        static_assert(ConvForwardSpecialization == device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0);
+        if constexpr(ConvForwardSpecialization ==
+                     device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
+        {
+            const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
+                make_tuple(Do_, Ho_, Wo_, C_),
+                make_tuple(DiStride_, HiStride_, WiStride_, CStrideTensorA_));
+
+            return transform_tensor_descriptor(
+                in_gemmm_gemmk_desc,
+                make_tuple(make_merge_transform(make_tuple(Do_, Ho_, Wo_)),
+                            make_pass_through_transform(C_)),
+                make_tuple(Sequence<0, 1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
+        }
+    }
+
+    
+    template <typename ALayout,
+              typename ck::enable_if<NDimSpatial == 2 &&
                                          (is_same_v<ALayout, tensor_layout::convolution::G_NHW_C> ||
                                           is_same_v<ALayout, tensor_layout::convolution::NHWGC> ||
                                           is_same_v<ALayout, tensor_layout::convolution::GNHWC>),
@@ -1254,6 +1313,18 @@ struct TransformConvFwdToGemm
     }
 
     template <typename BLayout,
+              typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKCX> ||
+                                         is_same_v<BLayout, tensor_layout::convolution::GKCYX> ||
+                                         is_same_v<BLayout, tensor_layout::convolution::GKCZYX>,
+                                     bool>::type = false>
+    __host__ __device__ auto MakeBDescriptor_N_K() const
+    {
+        static_assert(ConvForwardSpecialization == device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0);
+        static_assert(NumGroupsToMerge == 1);
+        return make_naive_tensor_descriptor_packed(make_tuple(K_, C_));     
+    }
+
+    template <typename BLayout,
               typename ck::enable_if<is_same_v<BLayout, tensor_layout::convolution::GKXC> ||
                                          is_same_v<BLayout, tensor_layout::convolution::GKYXC> ||
                                          is_same_v<BLayout, tensor_layout::convolution::GKZYXC>,
@@ -1536,6 +1607,34 @@ struct TransformConvFwdToGemm
         }
     }
 
+    template <typename CLayout,
+            index_t NDimSp = NDimSpatial,
+
+            typename ck::enable_if<NDimSp == 2 &&
+                                        (is_same_v<CLayout, tensor_layout::convolution::GNKHW> ||
+                                        is_same_v<CLayout, tensor_layout::convolution::NGKHW>),
+                                    bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        const IndexType NDoHoWo = N_ * Ho_ * Wo_;
+
+        return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
+                                            make_tuple(WoStride_, KStrideTensorC_));
+
+    }
+
+    template <typename CLayout,
+              index_t NDimSp = NDimSpatial,
+              typename ck::enable_if<
+                  NDimSp == 3 && (is_same_v<CLayout, tensor_layout::convolution::GNKDHW> ||
+                                  is_same_v<CLayout, tensor_layout::convolution::NGKDHW>),
+                  bool>::type = false>
+    __host__ __device__ auto MakeCDescriptor_M_N() const
+    {
+        const IndexType NDoHoWo = N_ * Do_ * Ho_ * Wo_;
+        return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
+                                            make_tuple(WoStride_, KStrideTensorC_));
+    }
     IndexType N_;
     IndexType Di_, Hi_, Wi_;
     IndexType Do_, Ho_, Wo_;
