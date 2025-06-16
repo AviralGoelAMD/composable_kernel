@@ -19,7 +19,7 @@ using InElementOp  = PassThrough;
 using WeiElementOp = PassThrough;
 using OutElementOp = PassThrough;
 
-
+#if 0
 template <ck::index_t NDimSpatial>
 using DeviceConvFwdInstance =
     ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
@@ -68,6 +68,28 @@ using DeviceConvFwdInstance =
         1,
         S<1, 16, 1, 16>,
         4>;
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,  
+     #endif   
+    template <ck::index_t NDimSpatial>
+using DeviceConvFwdInstance =
+    ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
+        NDimSpatial,
+        InputLayout<NDimSpatial>,
+        WeightLayout<NDimSpatial>,
+        ck::Tuple<>,
+        OutputLayout<NDimSpatial>,
+        InKernelDataType,
+        WeiKernelDataType,
+        AccDataType,
+        CShuffleDataType,
+        ck::Tuple<>,
+        OutKernelDataType,
+        InElementOp,
+        WeiElementOp,
+        OutElementOp,
+        ConvSpec,    // ConvForwardSpecialization
+        GemmSpec,    // GemmSpecialization    
+        1,   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 32, 1, 8>,               8>;
 
 #include "run_grouped_conv_fwd_example.inc"
 
