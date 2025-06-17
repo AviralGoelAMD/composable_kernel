@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_mfma.hpp"
 
 namespace ck_tile {
 

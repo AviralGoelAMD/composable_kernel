@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fused_moe/pipeline/fused_moegemm_traits.hpp"
 #include "ck_tile/ops/flatmm.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
 
