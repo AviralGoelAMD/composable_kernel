@@ -1217,6 +1217,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const index_t G = arg.b_g_k_c_xs_lengths_[I0];
         const index_t K = arg.b_g_k_c_xs_lengths_[I1];
         const index_t C = arg.b_g_k_c_xs_lengths_[I2];
+        const index_t input_spatial_acum = ck::accumulate_n<index_t>(
+                arg.a_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
 
         // check device
         if(get_device_name() == "gfx908")
@@ -1302,7 +1304,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
         }
 
-        #if 0
         // check vector access of A
         // FIXME: layout
         if constexpr(is_same_v<ALayout, ctc::G_NW_C> || is_same_v<ALayout, ctc::G_NHW_C> ||
@@ -1310,7 +1311,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                      is_same_v<ALayout, ctc::GNHWC> || is_same_v<ALayout, ctc::GNDHWC> ||
                      is_same_v<ALayout, ctc::NWGC> || is_same_v<ALayout, ctc::NHWGC> ||
                      is_same_v<ALayout, ctc::NDHWGC> || is_same_v<ALayout, ctc::NGCW> ||
-                     is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
+                     NeedTranspose)
+                     //is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
         {
             // Check access per C
             if(!(ABlockTransferSrcVectorDim == 2 && C % ABlockTransferSrcScalarPerVector == 0))
@@ -1321,6 +1323,23 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                       is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                       is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>()) &&
                      G % ABlockTransferSrcScalarPerVector == 0))
+                {
+                    return false;
+                }
+            }
+        }
+        else if constexpr(is_same_v<ALayout, ctc::NGCHW> || is_same_v<ALayout, ctc::NGCDHW>)
+        {
+            static_assert(NeedTranspose == false);
+            static_assert(NumGroupsToMerge == 1);
+   
+            if constexpr (ABlockTransferSrcScalarPerVector != 1)
+            {
+                if (ABlockTransferSrcVectorDim != 1)
+                {
+                    return false;
+                }
+                if (input_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
                     return false;
                 }
@@ -1350,7 +1369,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             return false;
         }
-#endif
         //  check vector access of Ds
         bool valid = true;
 
@@ -1395,9 +1413,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 valid = false;
             }
         });
-#if 0
-        if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                     is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
+
+        if constexpr(NeedTranspose)
         {
             if((G * C) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
@@ -1409,8 +1426,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 return false;
             }
 
-            const index_t input_spatial_acum = ck::accumulate_n<index_t>(
-                arg.a_g_n_c_wis_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+
             const index_t output_spatial_acum = ck::accumulate_n<index_t>(
                 arg.e_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
 
@@ -1443,7 +1459,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 return false;
             }
         }
-        #endif
 
         if(!valid)
         {
