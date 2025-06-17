@@ -461,14 +461,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS write 0
-            if constexpr(is_a_col_major)
-            {
-                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-            }
-            else
+            // if constexpr(is_a_col_major)
+            // {
+            //     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+            //         Policy::template MakeShuffledARegTileDistribution<Problem>());
+            //     // transpose_tile2d(a_shuffle_tmp, a_block_tile);
+            //     Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+            // }
+            // else
             {
                 Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
             }
@@ -500,14 +500,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 {
                     block_sync_lds();
 
-                    if constexpr(is_a_col_major)
-                    {
-                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                            Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                    }
-                    else
+                    // if constexpr(is_a_col_major)
+                    // {
+                    //     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                    //         Policy::template MakeShuffledARegTileDistribution<Problem>());
+                    //     transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                    //     Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                    // }
+                    // else
                     {
                         Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
                     }
@@ -549,14 +549,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
 
-                if constexpr(is_a_col_major)
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, a_block_tile);
-                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-                }
-                else
+                // if constexpr(is_a_col_major)
+                // {
+                //     auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                //         Policy::template MakeShuffledARegTileDistribution<Problem>());
+                //     transpose_tile2d(a_shuffle_tmp, a_block_tile);
+                //     Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                // }
+                // else
                 {
                     Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
                 }

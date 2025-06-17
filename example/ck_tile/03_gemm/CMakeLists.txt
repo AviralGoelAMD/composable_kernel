@@ -1,6 +1,6 @@
 add_executable(tile_example_gemm_basic EXCLUDE_FROM_ALL gemm_basic.cpp)
 add_executable(tile_example_gemm_universal EXCLUDE_FROM_ALL universal_gemm.cpp)
-set(EXAMPLE_GEMM_COMPILE_OPTIONS)
+set(EXAMPLE_GEMM_COMPILE_OPTIONS "-save-temps" "-g" "-fverbose-asm" "-Wno-gnu-line-marker" "-Rpass-analysis=kernel-resource-usage")
 if(CK_USE_OCP_FP8)
   list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()

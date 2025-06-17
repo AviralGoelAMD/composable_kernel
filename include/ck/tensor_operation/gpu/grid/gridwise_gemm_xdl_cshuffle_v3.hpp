@@ -923,53 +923,55 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
+#if 0
         // B matrix in LDS memory, dst of blockwise copy
-        // if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
-        // {
-        //     // bank conflict when writting the data into LDS, but don't worry, we have whole entire
-        //     // loop to hide it in v4. it may give you some benefit from less valu in compute address
-        //     return make_naive_tensor_descriptor(
-        //         make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
-        //         make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
-        // }
-        // else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
-        // {
-        //     // NLdsLayer * K0 as logical Bank
-        //     constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
-        //     constexpr index_t NLdsLayer     = LdsSize < 1 ? 1 : LdsSize;
-        //     constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
-        //         make_tuple(
-        //             BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
-        //         make_tuple(BK1Number, Number<KPerBlock * NLdsLayer>{}, I1));
+        if constexpr(BBlockLdsExtraN || BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+        {
+            // bank conflict when writting the data into LDS, but don't worry, we have whole entire
+            // loop to hide it in v4. it may give you some benefit from less valu in compute address
+            return make_naive_tensor_descriptor(
+                make_tuple(BK0Number, Number<NPerBlock>{}, BK1Number),
+                make_tuple(Number<NPerBlock + BBlockLdsExtraN>{} * BK1Number, BK1Number, I1));
+        }
+        else if constexpr(is_same<tensor_layout::gemm::ColumnMajor, BLayout>::value)
+        {
+            // NLdsLayer * K0 as logical Bank
+            constexpr index_t LdsSize       = 32 * 4 / KPerBlock / sizeof(BDataType) / BPackedSize;
+            constexpr index_t NLdsLayer     = LdsSize < 1 ? 1 : LdsSize;
+            constexpr auto b_lds_block_desc = make_naive_tensor_descriptor(
+                make_tuple(
+                    BK0Number * Number<NLdsLayer>{}, Number<NPerBlock / NLdsLayer>{}, BK1Number),
+                make_tuple(BK1Number, Number<KPerBlock * NLdsLayer>{}, I1));
 
-        //     constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
-        //         b_lds_block_desc,
-        //         make_tuple(make_xor_with_modulo_transform(make_tuple(
-        //                        Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
-        //                    make_pass_through_transform(BK1Number)),
-        //         make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
-        //         make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
+            constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
+                b_lds_block_desc,
+                make_tuple(make_xor_with_modulo_transform(make_tuple(
+                               Number<NPerBlock / NLdsLayer>{}, Number<BK0Number * NLdsLayer>{})),
+                           make_pass_through_transform(BK1Number)),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}),
+                make_tuple(Sequence<1, 0>{}, Sequence<2>{}));
 
-        //     constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
-        //         b_lds_block_desc_permuted,
-        //         make_tuple(make_unmerge_transform(make_tuple(BK0Number, Number<NLdsLayer>{})),
-        //                    make_pass_through_transform(Number<NPerBlock / NLdsLayer>{}),
-        //                    make_pass_through_transform(BK1Number)),
-        //         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-        //         make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
+            constexpr auto b_lds_block_desc_bk0_nldslayer_n_bk1 = transform_tensor_descriptor(
+                b_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(make_tuple(BK0Number, Number<NLdsLayer>{})),
+                           make_pass_through_transform(Number<NPerBlock / NLdsLayer>{}),
+                           make_pass_through_transform(BK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0, 2>{}, Sequence<1>{}, Sequence<3>{}));
 
-        //     constexpr auto b_lds_block_desc_bk0_n_bk1 = transform_tensor_descriptor(
-        //         b_lds_block_desc_bk0_nldslayer_n_bk1,
-        //         make_tuple(make_pass_through_transform(BK0Number),
-        //                    make_merge_transform_v3_division_mod(
-        //                        make_tuple(Number<NPerBlock / NLdsLayer>{}, Number<NLdsLayer>{})),
-        //                    make_pass_through_transform(BK1Number)),
-        //         make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
-        //         make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
+            constexpr auto b_lds_block_desc_bk0_n_bk1 = transform_tensor_descriptor(
+                b_lds_block_desc_bk0_nldslayer_n_bk1,
+                make_tuple(make_pass_through_transform(BK0Number),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(Number<NPerBlock / NLdsLayer>{}, Number<NLdsLayer>{})),
+                           make_pass_through_transform(BK1Number)),
+                make_tuple(Sequence<0>{}, Sequence<1, 2>{}, Sequence<3>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}));
 
-        //     return b_lds_block_desc_bk0_n_bk1;
-        // }
+            return b_lds_block_desc_bk0_n_bk1;
+        }
         // else // RowMajor B
+#endif
         {
             // Tile 256x256x32, A/BK1 <8,4>
             // MFMA 32x32, M/NRepeat 4x4
@@ -1018,8 +1020,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
             constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
                 make_tuple(Number<KThreadWrite / kfold / KThreadReadPerm>{},
                            Number<K0PerThreadWrite>{},
-                           Number<KThreadReadPerm * N1>{},
-                           Number<kfold * N0 / npair>{},
+                           Number<KThreadReadPerm * N1>{},  // these two dims are used with xor
+                           Number<kfold * N0 / npair>{},    // modulo transform
                            Number<npair>{},
                            BK1Number));
 

@@ -4,8 +4,12 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/core/algorithm/structured_thread_mapping.hpp"
+
 
 namespace ck_tile {
 
@@ -177,7 +181,7 @@ struct UniversalGemmBasePolicy
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-#if 0
+#if 1
         // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t KPack     = GetSmemPackB<Problem>();
@@ -189,9 +193,9 @@ struct UniversalGemmBasePolicy
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(
                     BK0 * number<NLdsLayer>{}, number<NPerBlock / NLdsLayer>{}, number<KPack>{}),
-                make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, I0),
+                make_tuple(number<KPack>{}, number<KPerBlock * NLdsLayer>{}, number<1>{}),
                 number<KPack>{},
-                I0);
+                number<1>{});
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc_0,
