@@ -17,24 +17,27 @@ if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
 endif()
 
+set(FMHA_GENERATE_FWD_PARAMS)
+set(FMHA_GENERATE_BWD_PARAMS --receipt 3)
+
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
+  --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt ${FMHA_GENERATE_FWD_PARAMS}
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of FWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to generate a list of FWD kernels via Python.")
 endif()
 
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt --receipt 3
+  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt ${FMHA_GENERATE_BWD_PARAMS}
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
-  message(FATAL_ERROR "CK Tile FMHA FAILED to genrate a list of BWD kernels via Python.")
+  message(FATAL_ERROR "CK Tile FMHA FAILED to generate a list of BWD kernels via Python.")
 endif()
 
 # NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
@@ -45,13 +48,15 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  --api ${FMHA_FWD_APIS} --output_dir ${CMAKE_CURRENT_BINARY_DIR} ${FMHA_GENERATE_FWD_PARAMS}
+  COMMENT "Generate CK Tile FMHA FWD kernels"
 )
 
 add_custom_command(
   OUTPUT ${FMHA_BWD_GEN_BLOBS}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} --receipt 3
+  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} ${FMHA_GENERATE_BWD_PARAMS}
+  COMMENT "Generate CK Tile FMHA BWD kernels"
 )
 
 set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
@@ -73,18 +78,41 @@ target_sources(${EXAMPLE_FMHA_BWD} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 # NOTE: this is dangerous since will change the whole kernel to flush denormals
 #       WIP with compiler team for an exp2 intrinsic..., then remove this
 if(NOT DEFINED FMHA_FWD_FAST_EXP2)
-    set(FMHA_FWD_FAST_EXP2 true)
+  set(FMHA_FWD_FAST_EXP2 true)
 endif()
 
-set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS)
-set(EXAMPLE_FMHA_BWD_COMPILE_OPTIONS)
+set(EXAMPLE_FMHA_COMPILE_OPTIONS)
+
+# Allow comparing floating points directly in order to check sentinel values
+list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -Wno-float-equal)
+
+if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32)
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS --offload-compress)
+endif()
+
+# TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
+# size so it cannot launch kernels for MFMA and WMMA at the same time
+# Create separate binaries?
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use WMMA")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
+elseif(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use MFMA")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+else()
+  message(WARNING "FMHA examples cannot use both MFMA and WMMA, only MFMA is forced to use")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+endif()
+
+set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS ${EXAMPLE_FMHA_COMPILE_OPTIONS})
+set(EXAMPLE_FMHA_BWD_COMPILE_OPTIONS ${EXAMPLE_FMHA_COMPILE_OPTIONS})
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 #       ... because they are auto-generated
 if(FMHA_FWD_FAST_EXP2)
-	list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=1 -fgpu-flush-denormals-to-zero)
 else()
-	list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-undefined-func-template -DCK_TILE_FMHA_FWD_FAST_EXP2=0)
 endif()
 list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-undefined-func-template -fgpu-flush-denormals-to-zero)
 
@@ -106,10 +134,6 @@ endif()
 if(CK_USE_OCP_FP8)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
-
-# Allow comparing floating points directly in order to check sentinel values
-list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -Wno-float-equal)
-list(APPEND EXAMPLE_FMHA_BWD_COMPILE_OPTIONS -Wno-float-equal)
 
 target_compile_options(${EXAMPLE_FMHA_FWD} PRIVATE ${EXAMPLE_FMHA_FWD_COMPILE_OPTIONS})
 target_compile_options(${EXAMPLE_FMHA_BWD} PRIVATE ${EXAMPLE_FMHA_BWD_COMPILE_OPTIONS})

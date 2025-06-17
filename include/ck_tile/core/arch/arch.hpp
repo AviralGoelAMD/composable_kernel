@@ -50,10 +50,17 @@ enum struct memory_operation_enum : std::uint16_t
 
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
+    // TODO: currently it is hardcoded otherwise there will be different values on host and device
+    // (for example, block size can be different in host and device code).
+    // This needs a better solution
+#if CK_TILE_USE_WMMA
+    return 32;
+#else
 #if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
     return 64;
 #else
     return 32;
+#endif
 #endif
 }
 

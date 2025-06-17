@@ -433,7 +433,7 @@ class FmhaFwdKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
+def get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             (32, 32)  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -454,10 +454,28 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     else:
         return None
 
+def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        return {
+            ( 32,  32) : FmhaFwdTileSize(128,  64, 16,  32, 32,   32,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            ( 64,  64) : FmhaFwdTileSize(128,  64, 32,  64, 32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            (128, 128) : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            (192, 128) : FmhaFwdTileSize(128, 128, 32, 128, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            (256, 256) : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        }
+    elif dtype == 'fp8' or dtype == 'bf8':
+        return {
+            ( 64,  64) : FmhaFwdTileSize(128, 64,  32, 64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            (128, 128) : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            (256, 256) : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        }
+    else:
+        return None
+
 def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
-    def get_pipelines(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
+    def get_pipelines_gfx9(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
@@ -502,14 +520,37 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
             assert False
         return pipelines
 
+    def get_pipelines_gfx12(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
+        squant = 't' if dtype == 'fp8' else 'f'
+        pipelines = []
+        if dtype in ['fp16', 'bf16']:
+            for logits, mask, bias, lse, dropout, skip in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f'], ['t', 'f'], ['t', 'f']):
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip))
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip))
+        elif dtype in ['fp8', 'bf8']:
+            # no need lse/dropout kernels
+            for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f'))
+                # TODO: this cannot be compiled, investigate why
+                # pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 'f', 'f', squant, mask, 'f'))
+        else:
+            assert False
+        return pipelines
+
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+
     for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
+        d = get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
+        get_pipelines = get_pipelines_gfx12 if use_gfx12 else get_pipelines_gfx9
         for ((hdim, hdim_v), tile), mode in itertools.product(d.items(), MODE_MAP.keys()):
             for pipeline in get_pipelines(dtype, hdim, hdim_v):
                 if mode == "group":
