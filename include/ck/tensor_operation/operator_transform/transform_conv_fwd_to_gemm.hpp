@@ -724,7 +724,7 @@ struct TransformConvFwdToGemm
         {
             const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
                 make_tuple(Ho_, Wo_, C_),
-                make_tuple(HiStride_, WiStride_, CStrideTensorA_));
+                make_tuple(HiStride_, I1, CStrideTensorA_));
 
             return transform_tensor_descriptor(
                 in_gemmm_gemmk_desc,
@@ -749,7 +749,7 @@ struct TransformConvFwdToGemm
         {
             const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
                 make_tuple(Do_, Ho_, Wo_, C_),
-                make_tuple(DiStride_, HiStride_, WiStride_, CStrideTensorA_));
+                make_tuple(DiStride_, HiStride_, I1, CStrideTensorA_));
 
             return transform_tensor_descriptor(
                 in_gemmm_gemmk_desc,
@@ -1617,9 +1617,8 @@ struct TransformConvFwdToGemm
     __host__ __device__ auto MakeCDescriptor_M_N() const
     {
         const IndexType NDoHoWo = N_ * Ho_ * Wo_;
-
         return make_naive_tensor_descriptor(make_tuple(NDoHoWo, K_),
-                                            make_tuple(WoStride_, KStrideTensorC_));
+                                            make_tuple(I1, KStrideTensorC_));
 
     }
 

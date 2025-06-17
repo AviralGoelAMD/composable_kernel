@@ -616,16 +616,16 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
               p_ds_grid_{},
               p_e_grid_{static_cast<EDataType*>(p_e)},
               a_g_n_c_wis_lengths_{a_g_n_c_wis_lengths},
-              a_g_n_c_wis_strides_{conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
-                  a_g_n_c_wis_lengths, a_g_n_c_wis_strides)},
+              a_g_n_c_wis_strides_{NeedTranspose ?  conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
+                  a_g_n_c_wis_lengths, a_g_n_c_wis_strides): a_g_n_c_wis_strides},
               b_g_k_c_xs_lengths_{b_g_k_c_xs_lengths},
-              b_g_k_c_xs_strides_{conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(
-                  b_g_k_c_xs_lengths, b_g_k_c_xs_strides)},
+              b_g_k_c_xs_strides_{NeedTranspose ? conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(
+                  b_g_k_c_xs_lengths, b_g_k_c_xs_strides) : b_g_k_c_xs_strides},
               ds_g_n_k_wos_lengths_{ds_g_n_k_wos_lengths},
               ds_g_n_k_wos_strides_{ds_g_n_k_wos_strides},
               e_g_n_k_wos_lengths_{e_g_n_k_wos_lengths},
-              e_g_n_k_wos_strides_{conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
-                  e_g_n_k_wos_lengths, e_g_n_k_wos_strides)},
+              e_g_n_k_wos_strides_{NeedTranspose ? conv_ngchw_to_nhwgc_transformer.TransposeInOutStrides(
+                  e_g_n_k_wos_lengths, e_g_n_k_wos_strides) : e_g_n_k_wos_strides},
               conv_filter_strides_{conv_filter_strides},
               conv_filter_dilations_{conv_filter_dilations},
               input_left_pads_{input_left_pads},
@@ -1302,6 +1302,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
         }
 
+        #if 0
         // check vector access of A
         // FIXME: layout
         if constexpr(is_same_v<ALayout, ctc::G_NW_C> || is_same_v<ALayout, ctc::G_NHW_C> ||
@@ -1349,7 +1350,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             return false;
         }
-
+#endif
         //  check vector access of Ds
         bool valid = true;
 
@@ -1394,7 +1395,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 valid = false;
             }
         });
-
+#if 0
         if constexpr(is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                      is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>())
         {
@@ -1442,6 +1443,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 return false;
             }
         }
+        #endif
 
         if(!valid)
         {

@@ -44,7 +44,13 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
 
     switch(config.init_method)
     {
-    case 0: break;
+    case 0:
+        //in.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
+        in.GenerateTensorValue(GeneratorTensor_1<InUserDataType>{1.0});
+        //wei.GenerateTensorValue(GeneratorTensor_1<WeiUserDataType>{1.0});
+
+        wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{-5, 5});
+        break;
     case 1:
         in.GenerateTensorValue(GeneratorTensor_2<InUserDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiUserDataType>{-5, 5});
@@ -53,6 +59,9 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
         in.GenerateTensorValue(GeneratorTensor_3<InUserDataType>{0.0, 1.0});
         wei.GenerateTensorValue(GeneratorTensor_3<WeiUserDataType>{-0.5, 0.5});
     }
+
+    dump_tensor(in, "in");
+    dump_tensor(wei, "wei");
 
     DeviceMem in_device_buf(sizeof(InKernelDataType) * in.mDesc.GetElementSpaceSize());
     DeviceMem wei_device_buf(sizeof(WeiKernelDataType) * wei.mDesc.GetElementSpaceSize());
@@ -110,6 +119,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
                                                   OutElementOp{});
 
         ref_invoker.Run(ref_argument);
+        dump_tensor(out_host, "ref");
     }
 #if defined(ENABLE_CONV_FACTORY)
     float best_tflops = 0;
@@ -174,6 +184,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
                 out_device_buf.FromDevice(out_device.mData.data());
                 ck::utils::check_err(
                     out_device.mData, out_host.mData, "Error: incorrect results!", 1e-3f, 1e-3f);
+                dump_tensor(out_device, "out");
             }
         }
     });
@@ -235,7 +246,7 @@ bool run_grouped_conv_fwd(const ExecutionConfig& config,
     if(config.do_verification)
     {
         out_device_buf.FromDevice(out_device.mData.data());
-
+       dump_tensor(out_device, "out");
 #ifdef BUILD_INT4_EXAMPLE
         const Tensor<OutUserDataType> out_device_converted(out_device);
 
