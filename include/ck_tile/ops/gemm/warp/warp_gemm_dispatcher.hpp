@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_mfma.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_wmma.hpp"
 
 namespace ck_tile {
 
@@ -19,6 +20,8 @@ template <typename AType,
           bool SwizzleA              = false,
           bool UseStructuredSparsity = false>
 struct WarpGemmMfmaDispatcher;
+
+#if CK_TILE_USE_MFMA
 
 // clang-format off
 // fp16
@@ -93,8 +96,58 @@ template<> struct WarpGemmMfmaDispatcher<ck_tile::int8_t, ck_tile::int8_t, ck_ti
 template<> struct WarpGemmMfmaDispatcher<ck_tile::int8_t, ck_tile::int8_t, ck_tile::int32_t, 16, 16,  32, true> { using Type = WarpGemmMfma_i32_16x16x32_i8_i8_CTransposed; };
 
 // clang-format on
+
+#elif CK_TILE_USE_WMMA
+
+// clang-format off
+
+// fp16
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp16_t, ck_tile::fp16_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_f16; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp16_t, ck_tile::fp16_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_f16_CTransposed ; };
+
+// bf16
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_bf16; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_bf16_CTransposed ; };
+
+// fp8 and bf8
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp8_t, ck_tile::fp8_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_fp8_fp8; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp8_t, ck_tile::bf8_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_fp8_bf8; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf8_t, ck_tile::fp8_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_bf8_fp8; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf8_t, ck_tile::bf8_t, float, 16, 16, 16, false> { using Type = WarpGemmWmma_f32_16x16x16_bf8_bf8; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp8_t, ck_tile::fp8_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_fp8_fp8_CTransposed; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::fp8_t, ck_tile::bf8_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_fp8_bf8_CTransposed; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf8_t, ck_tile::fp8_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_bf8_fp8_CTransposed; };
+template<> struct WarpGemmMfmaDispatcher<ck_tile::bf8_t, ck_tile::bf8_t, float, 16, 16, 16, true> { using Type = WarpGemmWmma_f32_16x16x16_bf8_bf8_CTransposed; };
+
+// clang-format on
+
+#endif // CK_TILE_USE_WMMA
+
 } // namespace impl
 
+// WarpGemmDispatcher supports both MFMA and WMMA.
+// At this moment it is used only in FMHA
+template <typename AType,
+          typename BType,
+          typename CType,
+          index_t MPerWave,
+          index_t NPerWave,
+          index_t KPerWave,
+          bool TransposeC,
+          bool SwizzleA              = false,
+          bool UseStructuredSparsity = false>
+using WarpGemmDispatcher = typename impl::WarpGemmMfmaDispatcher<AType,
+                                                                 BType,
+                                                                 CType,
+                                                                 MPerWave,
+                                                                 NPerWave,
+                                                                 KPerWave,
+                                                                 TransposeC,
+                                                                 SwizzleA,
+                                                                 UseStructuredSparsity>::Type;
+
+// WarpGemmMfmaDispatcher stays for compatibility with other ck_tile code.
+// TODO: remove
 template <typename AType,
           typename BType,
           typename AccType,

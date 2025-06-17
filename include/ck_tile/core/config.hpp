@@ -260,6 +260,16 @@
 #endif
 #endif
 
+#ifndef CK_TILE_USE_MFMA
+#define CK_TILE_USE_MFMA 1
+#endif
+#ifndef CK_TILE_USE_WMMA
+#define CK_TILE_USE_WMMA 0
+#endif
+#if CK_TILE_USE_MFMA && CK_TILE_USE_WMMA
+#error "CK_TILE_USE_MFMA and CK_TILE_USE_WMMA cannot be used together"
+#endif
+
 #ifndef CK_TILE_WA_ISSUE_2028
 #define CK_TILE_WA_ISSUE_2028 0
 #endif
