@@ -413,8 +413,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         const auto out_gemmmraw_gemmnraw_desc =
             conv_to_gemm_transformer.template MakeCDescriptor_M_N<Layout>();
 
+        constexpr auto matrix_padder_trans =
+            MatrixPadder<GemmSpec, index_t, index_t, index_t>{NPerBlock, MPerBlock, KPerBlock};
         const auto out_gemmm_gemmn_desc =
-            matrix_padder.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
+            matrix_padder_trans.PadCDescriptor_M_N(out_gemmmraw_gemmnraw_desc);
 
         return out_gemmm_gemmn_desc;
     }
@@ -525,15 +527,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
-        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemmTranspose::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
     using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        remove_cvref_t<decltype(GridwiseGemmTranspose::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     // block-to-e-tile map
     using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(GridwiseGemmTranspose::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<NPerBlock, NPerBlock>;
 
     using NGCHWTransposeDescType =
@@ -679,7 +681,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                   GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{GridwiseGemmTranspose::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               compute_ptr_offset_of_groups_{},
               compute_ptr_offset_of_n_{},
               a_element_op_{a_element_op},
@@ -811,18 +813,18 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
             else
             {
-                if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
-                                               b_grid_desc_n_k_,
+                if(GridwiseGemmTranspose::CheckValidity( b_grid_desc_n_k_,
+                                                       a_grid_desc_m_k_,
                                                ds_grid_desc_m_n_,
                                                e_grid_desc_m_n_,
                                                block_2_etile_map_))
                 {
                     e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                        GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        GridwiseGemmTranspose::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                             e_grid_desc_m_n_);
 
                     ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                        GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        GridwiseGemmTranspose::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                             ds_grid_desc_m_n_);
                 }
             }
