@@ -72,6 +72,7 @@ template <typename GridwiseGemm,
           typename BGridDesc_BK0_N_BK1,
           typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
           typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+          typename EGridDesc_MBlock_NBlock,
           typename Block2ETileMap,
           typename ComputePtrOffsetOfG,
           typename ComputePtrOffsetOfN,
@@ -96,6 +97,7 @@ __global__ void
                 ds_grid_desc_mblock_mperblock_nblock_nperblock,
             const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                 e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            const EGridDesc_MBlock_NBlock e_grid_desc_mblock_nblock,
             const Block2ETileMap block_2_ctile_map,
             const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
             const ComputePtrOffsetOfN compute_ptr_offset_of_n)
@@ -167,6 +169,7 @@ __global__ void
             b_grid_desc_k0_n_k1,
             ds_grid_desc_mblock_mperblock_nblock_nperblock,
             e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            e_grid_desc_mblock_nblock,
             block_2_ctile_map);
     }
     else
@@ -192,6 +195,7 @@ __global__ void
             b_grid_desc_k0_n_k1,
             ds_grid_desc_mblock_mperblock_nblock_nperblock,
             e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            e_grid_desc_mblock_nblock,
             block_2_ctile_map);
     }
 #else
@@ -203,6 +207,7 @@ __global__ void
     ignore = b_grid_desc_k0_n_k1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = e_grid_desc_mblock_mperblock_nblock_nperblock_;
+    ignore = e_grid_desc_mblock_nblock;
     ignore = a_element_op;
     ignore = b_element_op;
     ignore = cde_element_op;
@@ -1071,6 +1076,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         DeviceOp::BGridDesc_BK0_N_BK1,
                         DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
                         DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::EGridDesc_M_N,
                         Block2ETileMap,
                         ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
                         ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
@@ -1095,6 +1101,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.b_grid_desc_bk0_n_bk1_,
                         arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
                         arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                        arg.e_grid_desc_m_n_,
                         arg.block_2_etile_map_,
                         arg.compute_ptr_offset_of_groups_,
                         arg.compute_ptr_offset_of_n_);
