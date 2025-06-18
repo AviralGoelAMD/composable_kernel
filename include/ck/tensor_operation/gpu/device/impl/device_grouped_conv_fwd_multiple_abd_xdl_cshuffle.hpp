@@ -480,11 +480,30 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,             \
         BComputeDataType
+
+#define GridwiseGemmTransposeTemplateParameters                                                \
+    GemmBDataType, GemmADataType, AComputeDataType, AccDataType, CShuffleDataType, DsDataType, \
+        EDataType, BElementwiseOperation, AElementwiseOperation, CDEElementwiseOperation,      \
+        NumGemmKPrefetchStage, BlockSize, NPerBlock, MPerBlock, KPerBlock, BK1, AK1, NPerXDL,  \
+        MPerXDL, NXdlPerWave, MXdlPerWave, BBlockTransferThreadClusterLengths_BK0_N_BK1,       \
+        BBlockTransferThreadClusterArrangeOrder, BBlockTransferSrcAccessOrder,                 \
+        BBlockTransferSrcVectorDim, BBlockTransferSrcScalarPerVector,                          \
+        BBlockTransferDstScalarPerVector_BK1, false, BBlockLdsExtraN,                          \
+        ABlockTransferThreadClusterLengths_AK0_M_AK1, ABlockTransferThreadClusterArrangeOrder, \
+        ABlockTransferSrcAccessOrder, ABlockTransferSrcVectorDim,                              \
+        ABlockTransferSrcScalarPerVector, ABlockTransferDstScalarPerVector_AK1, false,         \
+        ABlockLdsExtraM, CShuffleMXdlPerWavePerShuffle, CShuffleNXdlPerWavePerShuffle,         \
+        CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
+        CDEBlockTransferScalarPerVector_NPerBlock, LoopSched, PipelineVersion::v1,             \
+        BComputeDataType
+    
+    static constexpr bool TransposeGemm = true;
     // Use appropriate gridwise gemm
     using GridwiseGemm = std::conditional_t<
         isMultiA || isMultiB,
         GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+    using GridwiseGemmTranspose =  GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTransposeTemplateParameters>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
     using APointers =
@@ -1063,6 +1082,54 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                        sizeof(EDataType);
                     }
                     }
+
+                    if constexpr(TransposeGemm)
+                    {
+                    const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
+                        GridwiseGemmTranspose,
+                        const BDataType*,
+                        const ADataType*,    
+                        typename GridwiseGemm::DsGridPointer,
+                        EDataType,
+                        BElementwiseOperation,
+                        AElementwiseOperation,
+                        CDEElementwiseOperation,
+                        DeviceOp::BGridDesc_BK0_N_BK1,
+                        DeviceOp::AGridDesc_AK0_M_AK1,
+                        DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::EGridDesc_M_N,
+                        Block2ETileMap,
+                        ComputePtrOffsetOfStridedBatch<NumATensor, NumBTensor, NumDTensor>,
+                        ComputePtrOffsetOfStridedBatch<NumATensor, I1, NumDTensor>,
+                        has_main_loop,
+                        isMultiA,
+                        isMultiB>;
+
+                    return launch_and_time_kernel(
+                        stream_config,
+                        kernel,
+                        dim3(gdx, gdy, gdz),
+                        dim3(BlockSize),
+                        0,
+                        p_b_grid,
+                        p_a_grid,
+                        arg.p_ds_grid_,
+                        p_e_grid,
+                        arg.b_element_op_,
+                        arg.a_element_op_,
+                        arg.cde_element_op_,
+                        arg.b_grid_desc_bk0_n_bk1_,
+                        arg.a_grid_desc_ak0_m_ak1_,
+                        arg.ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                        arg.e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                        arg.e_grid_desc_m_n_,
+                        arg.block_2_etile_map_,
+                        arg.compute_ptr_offset_of_groups_,
+                        arg.compute_ptr_offset_of_n_);
+                    }
+                    else
+                    {
                     const auto kernel = kernel_grouped_conv_fwd_multiple_abd_xdl_cshuffle<
                         GridwiseGemm,
                         const ADataType*,
@@ -1105,6 +1172,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                         arg.block_2_etile_map_,
                         arg.compute_ptr_offset_of_groups_,
                         arg.compute_ptr_offset_of_n_);
+                    }
                 }
             };
 
