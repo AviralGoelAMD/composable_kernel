@@ -8,7 +8,6 @@
 #include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/core/algorithm/structured_thread_mapping.hpp"
 
 
 namespace ck_tile {
