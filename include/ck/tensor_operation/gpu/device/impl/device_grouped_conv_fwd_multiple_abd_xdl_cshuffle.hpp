@@ -174,17 +174,18 @@ __global__ void
     }
     else
     {
-        const long_index_t a_group_offset =
+       const long_index_t b_group_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-        const long_index_t b_group_offset =
+        const long_index_t a_group_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
 
-        const long_index_t a_n_offset =
+        const long_index_t b_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t a_n_offset = 0;
 
         GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
             p_as_grid + a_group_offset + a_n_offset,
-            p_bs_grid + b_group_offset,
+            p_bs_grid + b_group_offset + b_n_offset,
             p_ds_grid_grp,
             p_e_grid + e_group_offset + e_n_offset,
             p_shared,
@@ -1536,6 +1537,17 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                 return false;
             }
         }
+        
+        if constexpr (TransposeGemm)
+        {
+            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
+                arg.e_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
+
+            if(output_spatial_acum % CDEBlockTransferScalarPerVector_NPerBlock != 0)
+            {
+                return false;
+            }         
+        }
 
         if(!valid)
         {
@@ -1576,8 +1588,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         }
         else
         {
-            return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                               arg.b_grid_desc_n_k_,
+            return GridwiseGemmTranspose::CheckValidity( arg.b_grid_desc_n_k_,
+                                                          arg.a_grid_desc_m_k_,
+                                              
                                                arg.ds_grid_desc_m_n_,
                                                arg.e_grid_desc_m_n_,
                                                arg.block_2_etile_map_);
