@@ -13,6 +13,138 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 
+
+struct RunLoadGlobalStoreLDSLoadLDS
+{
+    static constexpr auto NPerBlock = 256;
+    static constexpr auto NPerXdl   = 32;
+    static constexpr auto KPerBlock = 256;
+    static constexpr auto BlockSize = 256;
+    static constexpr auto VecLoadSize = 256;
+    static constexpr auto AccessPattern = ck_tile::tile_distribution_pattern::thread_raked;
+
+    using TileEncodingPattern  = ck_tile::TileDistributionEncodingPattern2D<BlockSize,
+                                                                        KPerBlock,
+                                                                        NPerBlock,
+                                                                        VecLoadSize,
+                                                                        AccessPattern>;
+
+    CK_TILE_DEVICE void operator()(const ck_tile::half_t* x, ck_tile::half_t* out)
+    {
+        using namespace ck_tile;
+        // ADAPTED OLD CK LDS TILE DESCRIPTOR
+        // BK1
+        constexpr auto BK1 = number<TileEncodingPattern::Y2>{};
+        constexpr auto BK0 = number<KPerBlock / BK1>{};
+
+        // How threads access data on N dim
+        constexpr auto N0 = TileEncodingPattern::X0;
+        constexpr auto N1 = TileEncodingPattern::X1;
+
+        // How many elements we can write by single thread to LDS
+        constexpr auto KThreadWrite     = TileEncodingPattern::X1;
+        constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
+        
+        constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
+        constexpr auto K0PerThreadRead = BK0 / KThreadRead;
+
+        // check if we exceed all 32banks width - (32x4B)
+        constexpr auto LdsBanksWidth = 128;
+        constexpr auto kfold = (BK1 * N0 * sizeof(half_t) > LdsBanksWidth) 
+                                ? 1
+                                : LdsBanksWidth / (BK1 * N0 * sizeof(half_t));
+        constexpr auto KThreadReadPerm = KThreadRead;
+        // 1<=npair<=n0
+        constexpr auto npair = (BK1 * NPerXdl * sizeof(half_t) > LdsBanksWidth)
+                ? 1
+                : ((LdsBanksWidth / (BK1 * NPerXdl * sizeof(half_t))) > N0
+                        ? N0
+                        : LdsBanksWidth / (BK1 * NPerXdl * sizeof(half_t)));
+
+        constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
+            make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
+                    number<K0PerThreadWrite>{},
+                    number<KThreadReadPerm * N1>{},
+                    number<kfold * N0 / npair>{},
+                    number<npair>{},
+                    BK1));
+
+        constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
+            b_lds_block_desc,
+            make_tuple(
+                make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
+                make_pass_through_transform(number<K0PerThreadWrite>{}),
+                make_xor_transform(
+                    make_tuple(number<KThreadReadPerm * N1>{}, number<kfold * N0 / npair>{})),
+                make_pass_through_transform(number<npair>{}),
+                make_pass_through_transform(BK1)),
+            make_tuple(
+                sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}, sequence<5>{}),
+            make_tuple(
+                sequence<0>{}, sequence<1>{}, sequence<2, 3>{}, sequence<4>{}, sequence<5>{}));
+
+        constexpr auto b_lds_block_desc_unmerged = transform_tensor_descriptor(
+            b_lds_block_desc_permuted,
+            make_tuple(
+                make_pass_through_transform(number<KThreadWrite / kfold / KThreadReadPerm>{}),
+                make_pass_through_transform(number<K0PerThreadWrite>{}),
+                make_unmerge_transform(make_tuple(number<KThreadReadPerm>{}, number<N1>{})),
+                make_unmerge_transform(make_tuple(number<kfold>{}, number<N0 / npair>{})),
+                make_pass_through_transform(number<npair>{}),
+                make_pass_through_transform(BK1)),
+            make_tuple(sequence<0>{},
+                    sequence<1>{},
+                    sequence<2>{},
+                    sequence<3>{},
+                    sequence<4>{},
+                    sequence<5>{}),
+            make_tuple(sequence<1>{},
+                    sequence<2>{},
+                    sequence<0, 3>{},
+                    sequence<4, 5>{},
+                    sequence<6>{},
+                    sequence<7>{}));
+
+        constexpr auto b_lds_block_desc_nk = transform_tensor_descriptor(
+            b_lds_block_desc_unmerged,
+            make_tuple(make_merge_transform_v3_division_mod(
+                        make_tuple(number<KThreadReadPerm>{},
+                                    number<KThreadWrite / kfold / KThreadReadPerm>{},
+                                    number<kfold>{},
+                                    number<K0PerThreadWrite>{},
+                                    BK1)),
+                    make_merge_transform_v3_division_mod(
+                        make_tuple(number<N0 / npair>{}, number<npair>{}, number<N1>{}))),
+            make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
+            make_tuple(sequence<1>{}, sequence<0>{}));
+        static_assert(b_lds_block_desc_nk.is_known_at_compile_time(), "not constexpr!");
+
+        // Load from global
+        const auto global_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+            x,
+            make_tuple(KPerBlock, NPerBlock),  // whole tensor shape
+            make_tuple(NPerBlock, 1),          // stride
+            number<8>{},                       // last dim size at least this
+            number<1>{}                        // last dim stride
+        );
+        const auto global_tile_window = make_tile_window(
+            global_tensor_view,
+            make_tuple(KPerBlock, NPerBlock),  // window shape, we only have one block for simplicity
+            {0, 0}                             // origin
+        );
+        // This does the same as GlobalPrefetch in gemm pipeline
+        const auto local_tile = load_tile(global_tile_window); // loads from global to threads/registers
+        
+        // Setup LDS tile
+        __shared__ char smem[sizeof(half_t) * b_lds_block_desc_nk.get_element_space_size()];
+        half_t* __restrict__ smem_ptr = static_cast<half_t*>(smem);
+        auto lds_tensor_view = make_tensor_view<address_space_enum::lds>(smem_ptr, b_lds_block_desc_nk);
+        auto lds_window = make_tile_window(lds_tensor_view, make_tuple(NPerBlock, KPerBlock), {0, 0});
+        // This does the same as LocalPrefill in gemm pipeline
+        store_tile(lds_window, local_tile);
+    }
+};
+
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
