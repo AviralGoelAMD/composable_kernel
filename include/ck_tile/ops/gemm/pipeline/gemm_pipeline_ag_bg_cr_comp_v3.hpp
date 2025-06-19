@@ -64,19 +64,19 @@ struct BaseGemmPipelineAgBgCrCompV3
                                 integral_constant<TailNumber, TailNumber::Full>{});
             }
         }
-        else
-        {
-            if(tail_number == TailNumber::Odd)
-            {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Odd>{});
-            }
-            else if(tail_number == TailNumber::Even)
-            {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Even>{});
-            }
-        }
+        // else
+        // {
+        //     if(tail_number == TailNumber::Odd)
+        //     {
+        //         return run_func(bool_constant<false>{},
+        //                         integral_constant<TailNumber, TailNumber::Odd>{});
+        //     }
+        //     else if(tail_number == TailNumber::Even)
+        //     {
+        //         return run_func(bool_constant<false>{},
+        //                         integral_constant<TailNumber, TailNumber::Even>{});
+        //     }
+        // }
 #if defined(__HIP_DEVICE_COMPILE__)
         // This path should be unreachable in device code if tail_number is valid.
         __builtin_unreachable();

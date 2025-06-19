@@ -112,6 +112,16 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        sequence<1, 2>,
                                        sequence<1, 2>>{});
     }
+
+    CK_TILE_HOST_DEVICE static auto print()
+    {
+        printf("TileDistributionEncodingPattern2D<BlockSize:%d, YPerTile:%d, XPerTile:%d, VecSize:%d, thread_raked>: ",
+               BlockSize,
+               YPerTile,
+               XPerTile,
+               VecSize);
+        printf("{<X0, X1>: <%d, %d>, <Y0, Y1, Y2>: <%d, %d, %d>}\n", X0, X1, Y0, Y1, Y2);
+    }
 };
 
 // Warp raked

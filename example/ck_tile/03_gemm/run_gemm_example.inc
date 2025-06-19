@@ -178,19 +178,19 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_C = stride_C;
 
     float ave_time;
-    if(persistent)
-    {
-        ave_time = gemm_calc<ADataType,
-                             BDataType,
-                             AccDataType,
-                             CDataType,
-                             ALayout,
-                             BLayout,
-                             CLayout,
-                             true>(
-            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
-    }
-    else
+    // if(persistent)
+    // {
+    //     ave_time = gemm_calc<ADataType,
+    //                          BDataType,
+    //                          AccDataType,
+    //                          CDataType,
+    //                          ALayout,
+    //                          BLayout,
+    //                          CLayout,
+    //                          true>(
+    //         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
+    // }
+    // else
     {
         ave_time = gemm_calc<ADataType,
                              BDataType,
