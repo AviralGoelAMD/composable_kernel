@@ -716,12 +716,14 @@ struct merge_v2_magic_division : public base_transform<LowLengths::size(), 1>
 
         //
         printf("low_lengths_ ");
-        print(low_lengths_);
+        // print(low_lengths_);
+        low_lengths_.print();
         printf(", ");
 
         //
         printf("up_lengths_ ");
-        print(up_lengths_);
+        // print(up_lengths_);
+        up_lengths_.print();
 
         printf("}");
     }
@@ -1187,7 +1189,8 @@ struct replicate : public base_transform<0, UpLengths::size()>
 
         //
         printf("up_lengths_: ");
-        print(up_lengths_);
+        // print(up_lengths_);
+        up_lengths_.print();
 
         printf("}");
     }

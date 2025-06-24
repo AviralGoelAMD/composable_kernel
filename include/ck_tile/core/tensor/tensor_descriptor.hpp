@@ -149,7 +149,7 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
         printf(",\n");
 
         // element_space_size_
-        printf("  element_space_size_: %ld\n", element_space_size_.value);
+        printf("  element_space_size_: %ld\n", static_cast<long>(element_space_size_.value));
 
         printf("}\n");
     }
