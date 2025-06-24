@@ -37,17 +37,64 @@ using FP32 = float;
 using FP8  = ck::f8_t;
 using BF8  = ck::bf8_t;
 
-struct ExecutionConfig final
-{
-    bool do_verification = true;
-    int init_method      = 1;
-    bool time_kernel     = false;
-};
-
 #define DefaultConvParams                                                                \
     ck::utils::conv::ConvParam                                                           \
     {                                                                                    \
         NDimSpatial, 32, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
+    }
+
+template <typename InputLay, typename WeightLay, typename OutputLay>
+struct CommonLayoutSetting
+{
+    using InputLayout  = InputLay;
+    using WeightLayout = WeightLay;
+    using OutputLayout = OutputLay;
+};
+
+
+template <ck::index_t NDimSpatial>
+struct CommonLayoutSettingSelector;
+
+namespace ctl = ck::tensor_layout::convolution;
+
+template <>
+struct CommonLayoutSettingSelector<1> final
+    : CommonLayoutSetting<ctl::G_NW_C, ctl::G_K_X_C, ctl::G_NW_K>
+{
+};
+
+template <>
+struct CommonLayoutSettingSelector<2> final
+    : CommonLayoutSetting<ctl::GNHWC, ctl::GKYXC, ctl::GNHWK>
+{
+};
+
+template <>
+struct CommonLayoutSettingSelector<3> final
+    : CommonLayoutSetting<ctl::G_NDHW_C, ctl::G_K_ZYX_C, ctl::G_NDHW_K>
+{
+};
+
+template <ck::index_t NDimSpatial>
+using InputLayout = typename CommonLayoutSettingSelector<NDimSpatial>::InputLayout;
+
+template <ck::index_t NDimSpatial>
+using WeightLayout = typename CommonLayoutSettingSelector<NDimSpatial>::WeightLayout;
+
+template <ck::index_t NDimSpatial>
+using OutputLayout = typename CommonLayoutSettingSelector<NDimSpatial>::OutputLayout;
+
+struct ExecutionConfig final
+{
+    bool do_verification = true;
+    int init_method      = 1;
+    bool time_kernel     = true;
+};
+
+#define DefaultConvParam                                                       \
+    ck::utils::conv::ConvParam                                                 \
+    {                                                                          \
+        2, 32, 2, 256, 192, {3, 3}, {71, 71}, {2, 2}, {1, 1}, {1, 1}, { 1, 1 } \
     }
 
 inline void print_help_msg()
@@ -92,7 +139,7 @@ inline bool parse_cmd_args(int argc,
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
         conv_params                       = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, threshold_to_catch_partial_args, argv);
+            num_dim_spatial, num_conv_param_leading_args, argv);
     }
     else
     {
