@@ -531,6 +531,11 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     block_sync_lds();
 
                     block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    // load_tile(block_gemm.a_warp_tile_, a_lds_gemm_window);
+                    // if constexpr(is_b_row_major)
+                    // {
+                    //     load_tile(b_warp_tile_, b_lds_gemm_window);
+                    // }
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
 

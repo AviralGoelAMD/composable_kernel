@@ -180,7 +180,7 @@ struct UniversalGemmBasePolicy
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-#if 1
+#if 0
         // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t KPack     = GetSmemPackB<Problem>();
@@ -266,10 +266,12 @@ struct UniversalGemmBasePolicy
             constexpr auto kfold = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth) 
                                     ? 1
                                     : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
-            constexpr auto KThreadReadPerm =
-                (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
-                    ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
-                    : KThreadRead;
+            // constexpr auto KThreadReadPerm =
+            //     (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+            //         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+            //         : KThreadRead;
+            constexpr auto KThreadReadPerm = KThreadRead;
+            ignore = K0PerThreadRead;
 
             // 1<=npair<=n0
             constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > LdsBanksWidth)

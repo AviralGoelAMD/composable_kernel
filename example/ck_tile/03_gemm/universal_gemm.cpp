@@ -18,9 +18,9 @@ struct RunLoadGlobalStoreLDSLoadLDS
 {
     static constexpr auto NPerBlock = 256;
     static constexpr auto NPerXdl   = 32;
-    static constexpr auto KPerBlock = 256;
+    static constexpr auto KPerBlock = 64;
     static constexpr auto BlockSize = 256;
-    static constexpr auto VecLoadSize = 256;
+    static constexpr auto VecLoadSize = 8;
     static constexpr auto AccessPattern = ck_tile::tile_distribution_pattern::thread_raked;
 
     using TileEncodingPattern  = ck_tile::TileDistributionEncodingPattern2D<BlockSize,
@@ -46,7 +46,7 @@ struct RunLoadGlobalStoreLDSLoadLDS
         constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
         
         constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
-        constexpr auto K0PerThreadRead = BK0 / KThreadRead;
+        // constexpr auto K0PerThreadRead = BK0 / KThreadRead;
 
         // check if we exceed all 32banks width - (32x4B)
         constexpr auto LdsBanksWidth = 128;
@@ -130,18 +130,30 @@ struct RunLoadGlobalStoreLDSLoadLDS
         const auto global_tile_window = make_tile_window(
             global_tensor_view,
             make_tuple(KPerBlock, NPerBlock),  // window shape, we only have one block for simplicity
-            {0, 0}                             // origin
+            {0, 0},                            // origin
+            TileEncodingPattern::Make2DStaticTileDistribution() // tile distribution
         );
         // This does the same as GlobalPrefetch in gemm pipeline
-        const auto local_tile = load_tile(global_tile_window); // loads from global to threads/registers
+        // using BlockTileDstr = decltype(global_tile_window.get_tile_distribution());
+        // using BlockTile = decltype(make_static_distributed_tensor<half_t>(BlockTileDstr{}));
+        // BlockTile local_tile;
+        auto local_tile = make_static_distributed_tensor<half_t>(TileEncodingPattern::Make2DStaticTileDistribution());
+        load_tile(local_tile, global_tile_window);
         
         // Setup LDS tile
-        __shared__ char smem[sizeof(half_t) * b_lds_block_desc_nk.get_element_space_size()];
+        __shared__ half_t smem[b_lds_block_desc_nk.get_element_space_size()];
         half_t* __restrict__ smem_ptr = static_cast<half_t*>(smem);
         auto lds_tensor_view = make_tensor_view<address_space_enum::lds>(smem_ptr, b_lds_block_desc_nk);
         auto lds_window = make_tile_window(lds_tensor_view, make_tuple(NPerBlock, KPerBlock), {0, 0});
-        // This does the same as LocalPrefill in gemm pipeline
-        store_tile(lds_window, local_tile);
+        // This does the same as transpose+LocalPrefill in gemm pipeline
+        {
+            auto shuffled_tile = make_static_distributed_tensor<half_t>(TileEncodingPattern::MakeShuffled2DStaticTileDistribution());
+            transpose_tile2d(shuffled_tile, local_tile);
+            store_tile(lds_window, shuffled_tile);
+        }
+
+        // Do something based on lds data
+        out[get_thread_id()] = smem_ptr[get_thread_id()];
     }
 };
 
@@ -404,6 +416,11 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 static_assert(b_lds_block_desc_nk.is_known_at_compile_time(), "not constexpr!");
                 printf("b_lds_block_desc_nk:\n");
                 b_lds_block_desc_nk.print();
+
+                printf("2D static tile distribution:\n");
+                TileEncodingPattern::Make2DStaticTileDistribution().print();
+                printf("2D static shuffled tile distribution:\n");
+                TileEncodingPattern::MakeShuffled2DStaticTileDistribution().print();
             }
             dim3 grids;
             if constexpr(Persistent)
@@ -474,6 +491,13 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                                            ck_tile::make_kernel<blocks.x, GemmConfig::kBlockPerCu>(
                                                Kernel{}, grids, blocks, 0, kargs));
             }
+
+            // Run toy load/store case
+            ck_tile::ignore = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<256, 1>(RunLoadGlobalStoreLDSLoadLDS{}, dim3(1), dim3(256), 0, static_cast<half_t*>(kargs.c_ptr), static_cast<half_t*>(kargs.c_ptr))
+            );
+
             return ave_time;
         };
 
