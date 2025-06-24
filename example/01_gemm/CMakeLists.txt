@@ -27,6 +27,7 @@ add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_streamk_v3)
 
 add_example_executable(example_gemm_xdl_fp16_v3 gemm_xdl_fp16_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp16_v3)
+target_compile_options(example_gemm_xdl_fp16_v3 PRIVATE "-save-temps" "-g" "-fverbose-asm" "-Wno-gnu-line-marker" "-Rpass-analysis=kernel-resource-usage")
 
 add_example_executable(example_gemm_xdl_fp8_v3 gemm_xdl_fp8_v3.cpp)
 add_example_dependencies(example_gemm_xdl example_gemm_xdl_fp8_v3)
