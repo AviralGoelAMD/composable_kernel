@@ -157,6 +157,7 @@ struct tile_window_with_tile_dstr_base
             index_t VectorDimY_      = 0;
             index_t ScalarPerVector_ = 1;
 
+            // FIXME: this will pick the first dimension, is it the best always?
             for(index_t i = 0; i < NDimY; ++i)
             {
                 if(ys_vector_strides[i] == 1 && ys_vector_lengths[i] > ScalarPerVector_)

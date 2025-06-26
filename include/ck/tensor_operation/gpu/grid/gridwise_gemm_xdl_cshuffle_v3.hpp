@@ -973,7 +973,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // else // RowMajor B
 #endif
         {
-            // Tile 256x256x32, A/BK1 <8,4>
+            // Tile 256x256x32, AK1 BK1 <8,4>
             // MFMA 32x32, M/NRepeat 4x4
             // SrcScalarPerV: 8
             // DstScalarPerVec_K1: 4

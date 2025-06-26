@@ -244,7 +244,7 @@ struct UniversalGemmBasePolicy
             // Ys ({X1:8, Y2:8})
 
             // BK1
-            constexpr auto BK1 = number<TileEncodingPattern::Y2>{};
+            constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
             constexpr auto BK0 = number<KPerBlock / BK1>{};
 
             // How threads access data on N dim
@@ -266,12 +266,12 @@ struct UniversalGemmBasePolicy
             constexpr auto kfold = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth) 
                                     ? 1
                                     : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
-            // constexpr auto KThreadReadPerm =
-            //     (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
-            //         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
-            //         : KThreadRead;
-            constexpr auto KThreadReadPerm = KThreadRead;
-            ignore = K0PerThreadRead;
+            constexpr auto KThreadReadPerm =
+                (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                    ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+                    : KThreadRead;
+            // constexpr auto KThreadReadPerm = KThreadRead;
+            // ignore = K0PerThreadRead;
 
             // 1<=npair<=n0
             constexpr auto npair = (BK1 * NPerXdl * sizeof(BDataType) > LdsBanksWidth)
@@ -317,12 +317,12 @@ struct UniversalGemmBasePolicy
                            sequence<3>{},
                            sequence<4>{},
                            sequence<5>{}),
-                make_tuple(sequence<1>{},
-                           sequence<2>{},
-                           sequence<0, 3>{},
-                           sequence<4, 5>{},
-                           sequence<6>{},
-                           sequence<7>{}));
+                make_tuple(sequence<1>{},    // 0: K0PerThreadWrite
+                           sequence<2>{},    // 1: KThreadReadPerm
+                           sequence<0, 3>{}, // 2: KThreadWrite / kfold / KThreadReadPerm,  3: N1
+                           sequence<4, 5>{}, // 4: kfold,  5: N0 / npair
+                           sequence<6>{},    // 6: npair
+                           sequence<7>{}));  // 7: BK1
 
             // constexpr auto b_lds_block_desc_bk0_n_bk1 = transform_tensor_descriptor(
             //     b_lds_block_desc_unmerged,
@@ -348,6 +348,7 @@ struct UniversalGemmBasePolicy
                            make_merge_transform_v3_division_mod(
                                make_tuple(number<N0 / npair>{}, number<npair>{}, number<N1>{}))),
                 make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
+                // make_tuple(sequence<1, 2, 4, 0, 7>{}, sequence<5, 6, 3>{}),
                 make_tuple(sequence<1>{}, sequence<0>{}));
 
             return b_lds_block_desc_nk;

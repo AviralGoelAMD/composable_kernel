@@ -57,7 +57,7 @@ struct GemmConfig
     // Compute friendly for Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 32;
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -65,7 +65,7 @@ struct GemmConfig
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer = false;
 #elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE_V4)
@@ -198,11 +198,11 @@ struct DataTypeTraits<ck_tile::pk_int4_t>
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
+    arg_parser.insert("m", "4096", "m dimension")
         .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
+        .insert("k", "4096", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Column by default")
+        .insert("b_layout", "R", "B tensor data layout - Row by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")

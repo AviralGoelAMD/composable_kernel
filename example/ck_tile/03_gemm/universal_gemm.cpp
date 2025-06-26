@@ -18,7 +18,7 @@ struct RunLoadGlobalStoreLDSLoadLDS
 {
     static constexpr auto NPerBlock = 256;
     static constexpr auto NPerXdl   = 32;
-    static constexpr auto KPerBlock = 64;
+    static constexpr auto KPerBlock = 32;
     static constexpr auto BlockSize = 256;
     static constexpr auto VecLoadSize = 8;
     static constexpr auto AccessPattern = ck_tile::tile_distribution_pattern::thread_raked;
@@ -34,7 +34,7 @@ struct RunLoadGlobalStoreLDSLoadLDS
         using namespace ck_tile;
         // ADAPTED OLD CK LDS TILE DESCRIPTOR
         // BK1
-        constexpr auto BK1 = number<TileEncodingPattern::Y2>{};
+        constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
         constexpr auto BK0 = number<KPerBlock / BK1>{};
 
         // How threads access data on N dim
@@ -42,18 +42,25 @@ struct RunLoadGlobalStoreLDSLoadLDS
         constexpr auto N1 = TileEncodingPattern::X1;
 
         // How many elements we can write by single thread to LDS
-        constexpr auto KThreadWrite     = TileEncodingPattern::X1;
+        // constexpr auto KThreadWrite     = TileEncodingPattern::X1;
+        constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileDistributionEncodingPattern::Y1;
         constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
         
         constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
-        // constexpr auto K0PerThreadRead = BK0 / KThreadRead;
+        constexpr auto K0PerThreadRead = BK0 / KThreadRead;
 
         // check if we exceed all 32banks width - (32x4B)
         constexpr auto LdsBanksWidth = 128;
         constexpr auto kfold = (BK1 * N0 * sizeof(half_t) > LdsBanksWidth) 
                                 ? 1
                                 : LdsBanksWidth / (BK1 * N0 * sizeof(half_t));
-        constexpr auto KThreadReadPerm = KThreadRead;
+        constexpr auto KThreadReadPerm =
+            (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
+                ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
+                : KThreadRead;
+        // constexpr auto KThreadReadPerm = KThreadRead;
+        // ignore = K0PerThreadRead;
+
         // 1<=npair<=n0
         constexpr auto npair = (BK1 * NPerXdl * sizeof(half_t) > LdsBanksWidth)
                 ? 1
@@ -306,7 +313,7 @@ float gemm_calc(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config&
                 std::cout << std::endl << "OLD CK LDS TILE:" << std::endl;
                 TileEncodingPattern::print();
                 // BK1
-                constexpr auto BK1 = number<TileEncodingPattern::Y2>{};
+                constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
                 printf("BK1: %d, BK0: %d\n", BK1.value, BK0.value);
 
