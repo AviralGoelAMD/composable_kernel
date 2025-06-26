@@ -5,13 +5,14 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_mfma.hpp"
+#include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
 
 struct NullBlockDropout
 {
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
-    __host__ __device__ static constexpr auto
+    CK_TILE_HOST_DEVICE static constexpr auto
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                           index_t seqlen_qk_start)
     {
@@ -319,7 +320,7 @@ struct BlockDropoutBwd<false, IsWG32_, IsStoreRandval_>
     static constexpr bool IsStoreRandval = IsStoreRandval_;
 
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
-    __host__ __device__ static constexpr auto
+    CK_TILE_HOST_DEVICE static constexpr auto
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                           index_t seqlen_qk_start)
     {
@@ -339,6 +340,10 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
     static constexpr bool IsWG32         = IsWG32_;
     static constexpr bool IsStoreRandval = IsStoreRandval_;
 
+#if CK_TILE_USE_WMMA
+    static_assert(!IsWG32, "There are no 32x32 WMMA instructions, IsWG32 = true cannot be used");
+#endif
+
     CK_TILE_HOST_DEVICE BlockDropoutBwd(index_t i_batch,
                                         index_t i_head,
                                         index_t nheads,
@@ -346,12 +351,23 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                                         unsigned long long offset,
                                         float rp_undrop_,
                                         uint8_t p_undrop_in_uint8_t_)
-        : ph(seed,
-             offset + (i_batch * nheads + i_head) * get_warp_size() +
-                 (IsWG32 ? get_lane_id() : ((get_lane_id() & 47) + ((get_warp_id() & 1) << 4)))),
+        : ph(seed, offset + (i_batch * nheads + i_head) * 64 + GetPhiloxLaneOffset()),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {
+    }
+
+    CK_TILE_HOST_DEVICE static index_t GetPhiloxLaneOffset()
+    {
+        if constexpr(IsWG32)
+            return get_lane_id();
+        else
+#if CK_TILE_USE_WMMA
+            return (get_lane_id() & 15) + (((get_lane_id() >> 4) & 1) << 5) +
+                   ((get_warp_id() & 1) << 4);
+#else
+            return (get_lane_id() & 47) + ((get_warp_id() & 1) << 4);
+#endif
     }
 
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
@@ -564,11 +580,6 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         // register distribute
         auto randval = make_static_distributed_tensor<uint8_t>(
             MakeRandValTileDistribution<BlockGemm, false>());
-        if constexpr(IsWG32)
-            static_assert(randval.kThreadElementSpaceSize == 16);
-        else
-            static_assert(randval.kThreadElementSpaceSize == 4 ||
-                          randval.kThreadElementSpaceSize == 8);
 
         static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
             static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
@@ -587,8 +598,32 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
 
                 // generate random number
                 uint8_t* random_uint8_t_;
+#if CK_TILE_USE_WMMA
                 if constexpr(MBwdWG16SingleIterCheck)
                 {
+                    static_assert(randval.kThreadElementSpaceSize == 8);
+                    uint8_t random_uint8_t[8];
+                    // m0: 0
+                    // m1: 1
+                    const index_t start_idx = (start_m0_idx >> 4) & 1;
+                    ph.get_random_8x8(random_uint8_t,
+                                      reinterpret_cast<unsigned long long&>(rowcol),
+                                      start_idx * 2,
+                                      start_idx * 2 + 1);
+                    random_uint8_t_ = random_uint8_t;
+                }
+                else
+                {
+                    static_assert(randval.kThreadElementSpaceSize == 16);
+                    uint8_t random_uint8_t[16];
+                    ph.get_random_16x8(random_uint8_t,
+                                       reinterpret_cast<unsigned long long&>(rowcol));
+                    random_uint8_t_ = random_uint8_t;
+                }
+#else
+                if constexpr(MBwdWG16SingleIterCheck)
+                {
+                    static_assert(randval.kThreadElementSpaceSize == 4);
                     uint8_t random_uint8_t[4];
                     // m0t0 ~m0t15/m0t32~m0t47: 0
                     // m0t16~m0t31/m0t48~m0t63: 1
@@ -602,21 +637,26 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                 }
                 else if constexpr(MBwdWG16MultiIterCheck)
                 {
+                    static_assert(randval.kThreadElementSpaceSize == 8);
                     uint8_t random_uint8_t[8];
                     // t0 ~t15/t32~t47: 0
                     // t16~t31/t48~t63: 1
                     const index_t start_idx = (get_lane_id() >> 4) & 1;
-                    ph.get_random_8x8(
-                        random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol), start_idx);
+                    ph.get_random_8x8(random_uint8_t,
+                                      reinterpret_cast<unsigned long long&>(rowcol),
+                                      start_idx,
+                                      start_idx + 2);
                     random_uint8_t_ = random_uint8_t;
                 }
                 else
                 {
+                    static_assert(randval.kThreadElementSpaceSize == 16);
                     uint8_t random_uint8_t[16];
                     ph.get_random_16x8(random_uint8_t,
                                        reinterpret_cast<unsigned long long&>(rowcol));
                     random_uint8_t_ = random_uint8_t;
                 }
+#endif
 
                 constexpr auto randval_spans = decltype(randval)::get_distributed_spans();
                 int i_random_idx             = 0;
