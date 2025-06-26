@@ -416,35 +416,6 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         return randval_dram_window;
     }
 
-    template <typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeRandValLdsBlockDescriptor()
-    {
-        constexpr auto config =
-            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-        using WG                    = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t MWarp     = config.template at<1>();
-        constexpr index_t kMPerStep = MWarp * WG::kM;
-        constexpr index_t kNPerStep = WG::kN;
-        constexpr index_t kN1       = 8;
-        constexpr index_t kN0       = kNPerStep / kN1;
-
-        constexpr auto randval_lds_block_desc_0 = make_naive_tensor_descriptor(
-            ck_tile::make_tuple(number<kN0>{}, number<kMPerStep>{}, number<kN1>{}),
-            ck_tile::make_tuple(number<(kMPerStep + 1) * kN1>{}, number<kN1>{}, number<1>{}),
-            number<kN1>{},
-            number<1>{});
-
-        constexpr auto randval_lds_block_desc = transform_tensor_descriptor(
-            randval_lds_block_desc_0,
-            ck_tile::make_tuple(
-                make_pass_through_transform(number<kMPerStep>{}),
-                make_merge_transform(ck_tile::make_tuple(number<kN0>{}, number<kN1>{}))),
-            ck_tile::make_tuple(sequence<1>{}, sequence<0, 2>{}),
-            ck_tile::make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return randval_lds_block_desc;
-    }
-
     template <typename BlockGemm, bool IsFwd = true>
     CK_TILE_HOST_DEVICE static constexpr auto MakeRandValTileDistribution()
     {
@@ -515,33 +486,6 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         constexpr auto randval_block_part_dstr_encode =
             detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
                                                           randval_block_inner_part_dstr_encoding);
-
-        return make_static_tile_distribution(randval_block_part_dstr_encode);
-    }
-
-    template <typename BlockGemm>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeRandValLdsShuffleTileDistribution()
-    {
-        constexpr auto config =
-            BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-        using WG                = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t MWarp = config.template at<1>();
-        constexpr index_t NWarp = config.template at<2>();
-
-        constexpr index_t MIterPerWarp = 1;
-        constexpr index_t NIterPerWarp = 1;
-
-        constexpr auto randval_block_outer_part_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto randval_block_part_dstr_encode =
-            detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
-                                                          typename WG::CWarpDstrEncoding{});
 
         return make_static_tile_distribution(randval_block_part_dstr_encode);
     }
