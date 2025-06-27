@@ -247,7 +247,7 @@ struct tile_distribution
         // print(ys_to_d_);
         ys_to_d_.print();
         //
-        printf("}");
+        printf("}\n");
     }
 };
 
