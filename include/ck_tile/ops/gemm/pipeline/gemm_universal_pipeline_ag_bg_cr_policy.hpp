@@ -286,7 +286,16 @@ struct UniversalGemmBasePolicy
                            number<KThreadReadPerm * N1>{},
                            number<kfold * N0 / npair>{},
                            number<npair>{},
-                           BK1));
+                           BK1),
+                BK1
+            );
+            // constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
+            //     make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
+            //                number<K0PerThreadWrite>{},
+            //                number<KThreadReadPerm * N1>{},
+            //                number<kfold * N0 / npair>{},
+            //                number<npair>{},
+            //                BK1));
 
             constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
                 b_lds_block_desc,

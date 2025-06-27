@@ -33,48 +33,61 @@ struct RunLoadGlobalStoreLDSLoadLDS
     {
         using namespace ck_tile;
         // ADAPTED OLD CK LDS TILE DESCRIPTOR
-        // BK1
+        // BK1         4
         constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
+        //             8            32          4
         constexpr auto BK0 = number<KPerBlock / BK1>{};
 
         // How threads access data on N dim
+        //             32
         constexpr auto N0 = TileEncodingPattern::X0;
+        //             8
         constexpr auto N1 = TileEncodingPattern::X1;
 
         // How many elements we can write by single thread to LDS
-        // constexpr auto KThreadWrite     = TileEncodingPattern::X1;
-        constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileDistributionEncodingPattern::Y1;
+        constexpr auto KThreadWrite     = TileEncodingPattern::X1;  // 8
+        // constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
+        //             1                  8     8
         constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
         
+        //             2                 64                32
         constexpr auto KThreadRead     = get_warp_size() / NPerXdl;
+        //             4                 8     2
         constexpr auto K0PerThreadRead = BK0 / KThreadRead;
 
         // check if we exceed all 32banks width - (32x4B)
         constexpr auto LdsBanksWidth = 128;
+        //             1        4     32   2        = 256
         constexpr auto kfold = (BK1 * N0 * sizeof(half_t) > LdsBanksWidth) 
                                 ? 1
                                 : LdsBanksWidth / (BK1 * N0 * sizeof(half_t));
+        //             2
         constexpr auto KThreadReadPerm =
+        //   1       1                  4
             (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                 ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                 : KThreadRead;
         // constexpr auto KThreadReadPerm = KThreadRead;
         // ignore = K0PerThreadRead;
 
-        // 1<=npair<=n0
+        // 1<=npair<=n0    1    4     32        2        = 256
         constexpr auto npair = (BK1 * NPerXdl * sizeof(half_t) > LdsBanksWidth)
-                ? 1
+                ? 1  // goes here
                 : ((LdsBanksWidth / (BK1 * NPerXdl * sizeof(half_t))) > N0
                         ? N0
                         : LdsBanksWidth / (BK1 * NPerXdl * sizeof(half_t)));
 
+        // size: 4*1*16*32*1*4 = 8196 = 256*32
         constexpr auto b_lds_block_desc = make_naive_tensor_descriptor_packed(
-            make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},
-                    number<K0PerThreadWrite>{},
-                    number<KThreadReadPerm * N1>{},
-                    number<kfold * N0 / npair>{},
-                    number<npair>{},
-                    BK1));
+            make_tuple(number<KThreadWrite / kfold / KThreadReadPerm>{},  // 4 = 8/2
+                    number<K0PerThreadWrite>{},                           // 1
+                    number<KThreadReadPerm * N1>{},                       // 16 = 2 * 8
+                    number<kfold * N0 / npair>{},                         // 32
+                    number<npair>{},                                      // 1
+                    BK1),                                                 // 4
+            BK1
+        );                                                
+        static_assert(KThreadWrite / kfold / KThreadReadPerm * K0PerThreadWrite * KThreadReadPerm * N1 * kfold * N0 / npair * npair * BK1 == NPerBlock * KPerBlock, "LDS descriptor too small!");
 
         constexpr auto b_lds_block_desc_permuted = transform_tensor_descriptor(
             b_lds_block_desc,
@@ -124,7 +137,6 @@ struct RunLoadGlobalStoreLDSLoadLDS
                         make_tuple(number<N0 / npair>{}, number<npair>{}, number<N1>{}))),
             make_tuple(sequence<0, 1, 4, 2, 7>{}, sequence<5, 6, 3>{}),
             make_tuple(sequence<1>{}, sequence<0>{}));
-        static_assert(b_lds_block_desc_nk.is_known_at_compile_time(), "not constexpr!");
 
         // Load from global
         const auto global_tensor_view = make_naive_tensor_view<address_space_enum::global>(
@@ -140,6 +152,7 @@ struct RunLoadGlobalStoreLDSLoadLDS
             {0, 0},                            // origin
             TileEncodingPattern::Make2DStaticTileDistribution() // tile distribution
         );
+        // -- Load Global Tile
         // This does the same as GlobalPrefetch in gemm pipeline
         // using BlockTileDstr = decltype(global_tile_window.get_tile_distribution());
         // using BlockTile = decltype(make_static_distributed_tensor<half_t>(BlockTileDstr{}));

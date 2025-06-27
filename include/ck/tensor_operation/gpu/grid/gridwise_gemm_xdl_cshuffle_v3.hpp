@@ -983,10 +983,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
             // How threads access data on N dim
             // 32               //S<8, 32, 1>,
             constexpr auto N0 = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I1);
-            // 8
+            // 8                256         32
             constexpr auto N1 = NPerBlock / N0;
 
-            // 8
+            // 8                                                                 <8, 32, 1> 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             // 1                              (KTile/BK1 = 8) / 8 
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;

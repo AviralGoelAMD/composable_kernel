@@ -97,9 +97,9 @@ struct TileDistributionEncodingPattern2D<BlockSize,
             tile_distribution_encoding<sequence<1>,
                                        tuple<sequence<Y0, Y1, Y2>, sequence<X0, X1>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<0>, sequence<1, 0>>,  // Y0=num_warps, <Y1, X0>
+                                       tuple<sequence<0>, sequence<1, 0>>,  // Y0=num_warps, <Y1=num_rows, X0=nvec_per_row>
                                        sequence<1, 2>,
-                                       sequence<2, 1>>{});  // <Y2, X1=vec_size>
+                                       sequence<2, 1>>{});  // <Y2=iters_per_thread, X1=vec_size>
     }
 
     CK_TILE_HOST_DEVICE static constexpr auto MakeShuffled2DStaticTileDistribution()
@@ -110,7 +110,7 @@ struct TileDistributionEncodingPattern2D<BlockSize,
                                        tuple<sequence<2>, sequence<2, 1>>,  // Ps are the same as non-shuffled
                                        tuple<sequence<0>, sequence<1, 0>>,  // Y0=num_warps, <Y1=num_rows, X0=nvec_per_row>
                                        sequence<1, 2>,      // Ys are transposed
-                                       sequence<1, 2>>{});  // <X1, Y2=new_vec_size>
+                                       sequence<1, 2>>{});  // <X1=vec_size, Y2=iters_per_thread>
     }
 
     CK_TILE_HOST_DEVICE static auto print()
