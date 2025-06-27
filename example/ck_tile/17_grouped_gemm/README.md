@@ -147,9 +147,7 @@ All the necessary parameters are set, the tiling is computed, the GEMM pipeline 
 ```
 # in the root of ck_tile
 mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
-# The basic pipeline method on the gemm calculation
+sh ../script/cmake-ck-dev.sh ../ <arch>
 make tile_example_grouped_gemm -j
 ```
 This will result in an executable `build/bin/tile_example_grouped_gemm`
@@ -171,3 +169,23 @@ args:
  -repeat      Number of iterations to benchmark the kernel. (Default: 100).
  -group_count Group count. (Default: 16).
 ```
+
+
+## Source Structure
+
+- **Kernel**: [`grouped_gemm.hpp`](grouped_gemm.hpp) (tile-programming kernel template)
+- **Executables**: [`grouped_gemm.cpp`](grouped_gemm.cpp), [`grouped_gemm_tileloop.cpp`](grouped_gemm_tileloop.cpp)
+- **Build**: `CMakeLists.txt`, `run_grouped_gemm_example.inc`
+
+---
+
+## Related CK Tile Examples
+
+- [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
+- [15_fused_moe](../15_fused_moe/README.md): Fused MoE block (uses grouped GEMM)
+- [03_gemm](../03_gemm/README.md): Single GEMM with tiles
+
+For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+
+---
+[Back to CK Tile Examples](../README.md)

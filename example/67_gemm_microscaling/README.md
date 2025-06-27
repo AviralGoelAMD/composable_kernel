@@ -1,6 +1,16 @@
-# GEMM Examples for Microscaling Formats
+# GEMM with Microscaling
 
-## example_gemm_mx_fp8
+This example demonstrates a **GEMM operation with microscaling**, an advanced quantization technique that applies fine-grained scaling to small blocks of data. Microscaling enables more precise quantization than traditional methods by using different scale factors for small groups of elements, leading to better accuracy preservation in quantized neural network inference.
+
+## Source Code Organization
+
+-   [`gemm_microscaling_xdl.cpp`](./gemm_microscaling_xdl.cpp): The main example file. It sets up microscaled matrices with quantized data and scale factors, and instantiates the `DeviceGemmMicroscaling` operation.
+-   [`../../include/ck/tensor_operation/gpu/device/device_gemm_microscaling.hpp`](../../include/ck/tensor_operation/gpu/device/device_gemm_microscaling.hpp): The device interface for GEMM with microscaling support.
+-   The underlying kernel implements sophisticated block-wise dequantization integrated into the GEMM computation pipeline.
+
+## Build and Run
+
+### example_gemm_mx_fp8
 
 Custom verification parameters:
 ```bash
@@ -25,3 +35,4 @@ Default invocation:
 # Implies: ./bin/example_gemm_mx_fp8 1 2 0 0
 ./bin/example_gemm_mx_fp8
 ```
+
