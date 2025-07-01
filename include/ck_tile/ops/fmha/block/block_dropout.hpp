@@ -28,13 +28,13 @@ struct BlockDropout
     CK_TILE_HOST_DEVICE BlockDropout(index_t i_batch,
                                      index_t i_head,
                                      index_t nheads,
-                                     unsigned long long seed_,
-                                     unsigned long long offset_,
+                                     unsigned long long seed,
+                                     unsigned long long offset,
                                      float rp_undrop_,
                                      uint8_t p_undrop_in_uint8_t_,
                                      bool is_store_randval_)
-        : seed(seed_),
-          offset(offset_ + (i_batch * nheads + i_head) * 64),
+        : ph_seed(seed),
+          ph_head_offset(offset + (i_batch * nheads + i_head) * 64), // 64 is max warp size
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
           is_store_randval(is_store_randval_)
@@ -250,63 +250,60 @@ struct BlockDropout
         const index_t iNWarp       = get_warp_id() % NWarp;
 
         auto generate_randval = [&](auto i_m0, auto i_n0) {
-            uint2 rowcol;
-            index_t wg_subtile_idx;
-            index_t lane_offset;
+            // Generate random numbers
+            uint8_t random_uint8_t[randval_dist_generated.kThreadElementSpaceSize];
+            const index_t wg_m0 = (start_m0_idx / WG::kM) + (i_m0 * MWarp + iMWarp) * MIterPerWarp;
+            const index_t wg_n0 = (start_n0_idx / WG::kN) + (i_n0 * NWarp + iNWarp);
             if constexpr(IsWG32)
             {
-                const index_t wg_m0 = (start_m0_idx / WG::kM) + (i_m0 * MWarp + iMWarp);
-                const index_t wg_n0 = (start_n0_idx / WG::kN) + (i_n0 * NWarp + iNWarp);
-                rowcol              = make_uint2(wg_m0, wg_n0);
-                wg_subtile_idx      = 0;
-                lane_offset         = get_lane_id();
+                // Generate the whole 32x32 tile at once (each tile consists of random numbers taken
+                // from a separate subsequence of Philox)
+                const unsigned long long ph_subsequence =
+                    bit_cast<unsigned long long>(make_uint2(wg_m0, wg_n0));
+                const index_t ph_lane_offset = get_lane_id();
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
+                ph.get_random_16x8(random_uint8_t, ph_subsequence);
             }
             else
             {
-                const index_t wg_m0 =
-                    (start_m0_idx / WG::kM) + (i_m0 * MWarp + iMWarp) * MIterPerWarp;
-                const index_t wg_n0 = (start_n0_idx / WG::kN) + (i_n0 * NWarp + iNWarp);
-                rowcol              = make_uint2(wg_m0 / 2, wg_n0 / 2);
-                wg_subtile_idx      = wg_m0 % 2;
+                // Generate one or two 16x16 subtiles of the 32x32 tile (depending on whether
+                // MIterPerWarp is equal to 1 or 2)
+                const unsigned long long ph_subsequence =
+                    bit_cast<unsigned long long>(make_uint2(wg_m0 / 2, wg_n0 / 2));
+                const index_t subtile_m0 = wg_m0 % 2;
 #if CK_TILE_USE_WMMA
-                lane_offset =
+                const index_t ph_lane_offset =
                     (get_lane_id() & 15) + (((get_lane_id() >> 4) & 1) << 5) + ((wg_n0 % 2) << 4);
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                if constexpr(MIterPerWarp == 1)
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
+                    ph.get_random_8x8(
+                        random_uint8_t, ph_subsequence, subtile_m0 * 2 + 0, subtile_m0 * 2 + 1);
+                }
+                else
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
+                    ph.get_random_16x8(random_uint8_t, ph_subsequence);
+                }
 #else
-                // TODO: support WG16
+                const index_t subtile_n0     = (get_lane_id() >> 4) & 1;
+                const index_t ph_lane_offset = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                if constexpr(MIterPerWarp == 1)
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 4);
+                    ph.get_random_4x8(random_uint8_t, ph_subsequence, subtile_m0 * 2 + subtile_n0);
+                }
+                else
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
+                    ph.get_random_8x8(
+                        random_uint8_t, ph_subsequence, 0 * 2 + subtile_n0, 1 * 2 + subtile_n0);
+                }
 #endif
             }
-
-            // Generate random numbers
-            ck_tile::philox ph(seed, offset + lane_offset);
-            uint8_t random_uint8_t[randval_dist_generated.kThreadElementSpaceSize];
-#if CK_TILE_USE_WMMA
-            if constexpr(MIterPerWarp == 1)
-            {
-                static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
-                const index_t start_idx = wg_subtile_idx;
-                ph.get_random_8x8(random_uint8_t,
-                                  reinterpret_cast<unsigned long long&>(rowcol),
-                                  start_idx * 2,
-                                  start_idx * 2 + 1);
-            }
-            else
-            {
-                static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
-                ph.get_random_16x8(random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol));
-            }
-#else
-            if constexpr(!IsWG32)
-            {
-                // TODO: support WG16
-                static_assert(false);
-                ignore = wg_subtile_idx;
-            }
-            else
-            {
-                static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
-                ph.get_random_16x8(random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol));
-            }
-#endif
 
             constexpr auto randval_dist_generated_spans =
                 decltype(randval_dist_generated)::get_distributed_spans();
@@ -361,8 +358,8 @@ struct BlockDropout
         });
     }
 
-    unsigned long long seed;
-    unsigned long long offset;
+    const unsigned long long ph_seed;
+    const unsigned long long ph_head_offset;
     const float rp_undrop;
     const uint8_t p_undrop_in_uint8_t;
     const bool is_store_randval;
