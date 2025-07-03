@@ -344,9 +344,12 @@ struct BlockDropout
                 sweep_tile_span(randval_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(randval_spans[number<1>{}], [&](auto idx1) {
                         constexpr auto p_idx0 =
-                            tile_distributed_index<i_m0 * MIterPerWarp + idx0.impl_.at(0)>{};
+                            tile_distributed_index<i_m0 * MIterPerWarp +
+                                                   idx0.impl_.template at<0>()>{};
                         constexpr auto p_idx1 =
-                            tile_distributed_index<i_n0, idx1.impl_.at(1), idx1.impl_.at(2)>{};
+                            tile_distributed_index<i_n0,
+                                                   idx1.impl_.template at<1>(),
+                                                   idx1.impl_.template at<2>()>{};
                         constexpr auto p_idx = ck_tile::make_tuple(p_idx0, p_idx1);
                         constexpr auto r_idx = ck_tile::make_tuple(idx0, idx1);
                         p_compute(p_idx)     = randval[r_idx] <= p_undrop_in_uint8_t
@@ -365,6 +368,8 @@ struct BlockDropout
     const bool is_store_randval;
 };
 
+// TODO: IsWG32_ is not needed as template parameter and can be removed. IsDropout_ == false can be
+// replaced with NullBlockDropout. This requires changes in xformers and other libs.
 template <bool IsDropout_, bool IsWG32_, bool IsStoreRandval_>
 struct BlockDropoutBwd;
 
@@ -389,15 +394,8 @@ struct BlockDropoutBwd<false, IsWG32_, IsStoreRandval_>
 template <bool IsWG32_, bool IsStoreRandval_>
 struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
 {
-    static constexpr bool IsDropout = true;
-    // true:  32*32 warp gemm
-    // false: 16*16 warp gemm
-    static constexpr bool IsWG32         = IsWG32_;
+    static constexpr bool IsDropout      = true;
     static constexpr bool IsStoreRandval = IsStoreRandval_;
-
-#if CK_TILE_USE_WMMA
-    static_assert(!IsWG32, "There are no 32x32 WMMA instructions, IsWG32 = true cannot be used");
-#endif
 
     CK_TILE_HOST_DEVICE BlockDropoutBwd(index_t i_batch,
                                         index_t i_head,
@@ -406,23 +404,11 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                                         unsigned long long offset,
                                         float rp_undrop_,
                                         uint8_t p_undrop_in_uint8_t_)
-        : ph(seed, offset + (i_batch * nheads + i_head) * 64 + GetPhiloxLaneOffset()),
+        : ph_seed(seed),
+          ph_head_offset(offset + (i_batch * nheads + i_head) * 64), // 64 is max warp size
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {
-    }
-
-    CK_TILE_HOST_DEVICE static index_t GetPhiloxLaneOffset()
-    {
-        if constexpr(IsWG32)
-            return get_lane_id();
-        else
-#if CK_TILE_USE_WMMA
-            return (get_lane_id() & 15) + (((get_lane_id() >> 4) & 1) << 5) +
-                   ((get_warp_id() & 1) << 4);
-#else
-            return (get_lane_id() & 47) + ((get_warp_id() & 1) << 4);
-#endif
     }
 
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
@@ -432,23 +418,15 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
     {
         constexpr auto config =
             BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-        using BlockGemmShape                  = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
-        using WG                              = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t kMPerBlock          = BlockGemmShape::kM;
-        constexpr index_t MWarp               = config.template at<1>();
-        constexpr index_t NWarp               = config.template at<2>();
-        constexpr bool MBwdWG16MultiIterCheck = (!IsFwd) && (!IsWG32) && (kMPerBlock > 16);
-        constexpr index_t kMPerStep           = [&]() {
-            if constexpr(MBwdWG16MultiIterCheck)
-            {
-                return MWarp * WG::kM * 2;
-            }
-            else
-            {
-                return MWarp * WG::kM;
-            }
-        }();
-        constexpr index_t kNPerStep = NWarp * WG::kN;
+        using WG                       = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr bool IsWG32          = WG::kM == 32;
+        constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
+        using BlockGemmShape           = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
+        constexpr index_t kMPerBlock   = BlockGemmShape::kM;
+        constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarp * WG::kM) ? 2 : 1;
+        constexpr index_t kMPerStep    = MIterPerWarp * MWarp * WG::kM;
+        constexpr index_t kNPerStep    = NWarp * WG::kN;
 
         const auto block_origin  = randval_dram_block_window_tmp.get_window_origin();
         auto randval_dram_window = [&]() {
@@ -471,36 +449,27 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         return randval_dram_window;
     }
 
-    template <typename BlockGemm, bool IsFwd = true>
+    template <typename BlockGemm>
     CK_TILE_HOST_DEVICE static constexpr auto MakeRandValTileDistribution()
     {
         constexpr auto config =
             BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-        using BlockGemmShape                  = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
-        constexpr index_t kMPerBlock          = BlockGemmShape::kM;
-        constexpr index_t MWarp               = config.template at<1>();
-        constexpr index_t NWarp               = config.template at<2>();
-        constexpr bool MBwdWG16MultiIterCheck = (!IsFwd) && (!IsWG32) && (kMPerBlock > 16);
-
-        constexpr index_t MIterPerWarp = [&]() {
-            if constexpr(MBwdWG16MultiIterCheck)
-            {
-                return 2;
-            }
-            else
-            {
-                return 1;
-            }
-        }();
+        using WG                       = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr bool IsWG32          = WG::kM == 32;
+        constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
+        using BlockGemmShape           = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
+        constexpr index_t kMPerBlock   = BlockGemmShape::kM;
+        constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarp * WG::kM) ? 2 : 1;
         constexpr index_t NIterPerWarp = 1;
 
         constexpr auto randval_block_outer_part_dstr_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
+            tuple<sequence<MWarp, MIterPerWarp>, sequence<NIterPerWarp, NWarp>>,
             tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
+            tuple<sequence<0, 1>>,
             sequence<1, 2>,
-            sequence<0, 0>>{};
+            sequence<1, 0>>{};
 
         // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
         // except headdim256.
@@ -556,116 +525,106 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
     {
         constexpr auto config =
             BlockGemm::Policy::template GetWarpGemmMWarpNWarp<typename BlockGemm::Problem>();
-        using WG                               = remove_cvref_t<decltype(config.template at<0>())>;
-        constexpr index_t MWarp                = config.template at<1>();
-        constexpr index_t NWarp                = config.template at<2>();
-        using BlockGemmShape                   = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
-        constexpr index_t kMPerBlock           = BlockGemmShape::kM;
-        constexpr index_t kNPerBlock           = BlockGemmShape::kN;
-        constexpr bool MBwdWG16MultiIterCheck  = (!IsWG32) && (kMPerBlock > 16);
-        constexpr bool MBwdWG16SingleIterCheck = (!IsWG32) && (kMPerBlock == 16);
-        constexpr index_t kMPerStep            = [&]() {
-            if constexpr(MBwdWG16MultiIterCheck)
+        using WG                       = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr bool IsWG32          = WG::kM == 32;
+        constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
+        using BlockGemmShape           = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
+        constexpr index_t kMPerBlock   = BlockGemmShape::kM;
+        constexpr index_t kNPerBlock   = BlockGemmShape::kN;
+        constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarp * WG::kM) ? 2 : 1;
+        constexpr index_t kMPerStep    = MIterPerWarp * MWarp * WG::kM;
+        constexpr index_t kNPerStep    = NWarp * WG::kN;
+
+        // register distribute
+        auto randval_dist_generated =
+            make_static_distributed_tensor<uint8_t>(MakeRandValTileDistribution<BlockGemm>());
+
+        const index_t iMWarp = get_warp_id() / NWarp;
+        const index_t iNWarp = get_warp_id() % NWarp;
+
+        auto generate_randval = [&](auto i_m0, auto i_n0) {
+            // Generate random numbers
+            uint8_t random_uint8_t[randval_dist_generated.kThreadElementSpaceSize];
+            const index_t wg_m0 = (start_m0_idx / WG::kM) + (i_m0 * MWarp + iMWarp) * MIterPerWarp;
+            const index_t wg_n0 = (start_n0_idx / WG::kN) + (i_n0 * NWarp + iNWarp);
+            if constexpr(IsWG32)
             {
-                return MWarp * WG::kM * 2;
+                // Generate the whole 32x32 tile at once (each tile consists of random numbers
+                // taken from a separate subsequence of Philox)
+                const unsigned long long ph_subsequence =
+                    bit_cast<unsigned long long>(make_uint2(wg_m0, wg_n0));
+                const index_t ph_lane_offset = get_lane_id();
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
+                ph.get_random_16x8(random_uint8_t, ph_subsequence);
             }
             else
             {
-                return MWarp * WG::kM;
+                // Generate one or two 16x16 subtiles of the 32x32 tile (depending on whether
+                // MIterPerWarp is equal to 1 or 2)
+                const unsigned long long ph_subsequence =
+                    bit_cast<unsigned long long>(make_uint2(wg_m0 / 2, wg_n0 / 2));
+                const index_t subtile_m0 = wg_m0 % 2;
+#if CK_TILE_USE_WMMA
+                const index_t ph_lane_offset =
+                    (get_lane_id() & 15) + (((get_lane_id() >> 4) & 1) << 5) + ((wg_n0 % 2) << 4);
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                if constexpr(MIterPerWarp == 1)
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
+                    ph.get_random_8x8(
+                        random_uint8_t, ph_subsequence, subtile_m0 * 2 + 0, subtile_m0 * 2 + 1);
+                }
+                else
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 16);
+                    ph.get_random_16x8(random_uint8_t, ph_subsequence);
+                }
+#else
+                const index_t subtile_n0     = (get_lane_id() >> 4) & 1;
+                const index_t ph_lane_offset = (get_lane_id() & 47) + ((wg_n0 % 2) << 4);
+                ck_tile::philox ph(ph_seed, ph_head_offset + ph_lane_offset);
+                if constexpr(MIterPerWarp == 1)
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 4);
+                    ph.get_random_4x8(random_uint8_t, ph_subsequence, subtile_m0 * 2 + subtile_n0);
+                }
+                else
+                {
+                    static_assert(randval_dist_generated.kThreadElementSpaceSize == 8);
+                    ph.get_random_8x8(
+                        random_uint8_t, ph_subsequence, 0 * 2 + subtile_n0, 1 * 2 + subtile_n0);
+                }
+#endif
             }
-        }();
-        constexpr index_t kNPerStep = NWarp * WG::kN;
 
-        // register distribute
-        auto randval = make_static_distributed_tensor<uint8_t>(
-            MakeRandValTileDistribution<BlockGemm, false>());
+            constexpr auto randval_dist_generated_spans =
+                decltype(randval_dist_generated)::get_distributed_spans();
+            int i_random_idx = 0;
+            sweep_tile_span(randval_dist_generated_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(randval_dist_generated_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx          = ck_tile::make_tuple(idx0, idx1);
+                    randval_dist_generated(i_j_idx) = random_uint8_t[i_random_idx++];
+                });
+            });
+            return randval_dist_generated;
+        };
 
         static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
             static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
-                int block_row_start, block_col_start;
-                if constexpr(IsWG32)
-                {
-                    block_row_start = (start_m0_idx / WG::kM) + i_m0;
-                    block_col_start = (start_n0_idx / WG::kN) + (i_n0 * NWarp) + get_warp_id();
-                }
-                else
-                {
-                    block_row_start = start_m0_idx / 32 + i_m0;
-                    block_col_start = (start_n0_idx / 32) + get_warp_id() / 2 + i_n0 * 2;
-                }
-                uint2 rowcol = make_uint2(block_row_start, block_col_start);
-
-                // generate random number
-                uint8_t* random_uint8_t_;
-#if CK_TILE_USE_WMMA
-                if constexpr(MBwdWG16SingleIterCheck)
-                {
-                    static_assert(randval.kThreadElementSpaceSize == 8);
-                    uint8_t random_uint8_t[8];
-                    // m0: 0
-                    // m1: 1
-                    const index_t start_idx = (start_m0_idx >> 4) & 1;
-                    ph.get_random_8x8(random_uint8_t,
-                                      reinterpret_cast<unsigned long long&>(rowcol),
-                                      start_idx * 2,
-                                      start_idx * 2 + 1);
-                    random_uint8_t_ = random_uint8_t;
-                }
-                else
-                {
-                    static_assert(randval.kThreadElementSpaceSize == 16);
-                    uint8_t random_uint8_t[16];
-                    ph.get_random_16x8(random_uint8_t,
-                                       reinterpret_cast<unsigned long long&>(rowcol));
-                    random_uint8_t_ = random_uint8_t;
-                }
-#else
-                if constexpr(MBwdWG16SingleIterCheck)
-                {
-                    static_assert(randval.kThreadElementSpaceSize == 4);
-                    uint8_t random_uint8_t[4];
-                    // m0t0 ~m0t15/m0t32~m0t47: 0
-                    // m0t16~m0t31/m0t48~m0t63: 1
-                    // m1t0 ~m1t15/m1t32~m1t47: 2
-                    // m1t16~m1t31/m1t48~m1t63: 3
-                    const index_t start_idx =
-                        ((get_lane_id() >> 4) & 1) + (((start_m0_idx >> 4) & 1) << 1);
-                    ph.get_random_4x8(
-                        random_uint8_t, reinterpret_cast<unsigned long long&>(rowcol), start_idx);
-                    random_uint8_t_ = random_uint8_t;
-                }
-                else if constexpr(MBwdWG16MultiIterCheck)
-                {
-                    static_assert(randval.kThreadElementSpaceSize == 8);
-                    uint8_t random_uint8_t[8];
-                    // t0 ~t15/t32~t47: 0
-                    // t16~t31/t48~t63: 1
-                    const index_t start_idx = (get_lane_id() >> 4) & 1;
-                    ph.get_random_8x8(random_uint8_t,
-                                      reinterpret_cast<unsigned long long&>(rowcol),
-                                      start_idx,
-                                      start_idx + 2);
-                    random_uint8_t_ = random_uint8_t;
-                }
-                else
-                {
-                    static_assert(randval.kThreadElementSpaceSize == 16);
-                    uint8_t random_uint8_t[16];
-                    ph.get_random_16x8(random_uint8_t,
-                                       reinterpret_cast<unsigned long long&>(rowcol));
-                    random_uint8_t_ = random_uint8_t;
-                }
-#endif
-
+                const auto randval = generate_randval(i_m0, i_n0);
+                // Drop values of P based on the generated probabilities, negative sign is used to
+                // distinguish such values ​​later in bwd pipeline.
                 constexpr auto randval_spans = decltype(randval)::get_distributed_spans();
-                int i_random_idx             = 0;
                 sweep_tile_span(randval_spans[number<0>{}], [&](auto idx0) {
                     sweep_tile_span(randval_spans[number<1>{}], [&](auto idx1) {
-                        constexpr auto r_idx  = ck_tile::make_tuple(idx0, idx1);
-                        randval(r_idx)        = random_uint8_t_[i_random_idx++];
-                        constexpr auto p_idx0 = tile_distributed_index<i_m0 + idx0.impl_.at(0),
-                                                                       idx0.impl_.at(1),
-                                                                       idx0.impl_.at(2)>{};
+                        constexpr auto r_idx = ck_tile::make_tuple(idx0, idx1);
+                        constexpr auto p_idx0 =
+                            tile_distributed_index<i_m0 * MIterPerWarp +
+                                                       idx0.impl_.template at<0>(),
+                                                   idx0.impl_.template at<1>(),
+                                                   idx0.impl_.template at<2>()>{};
                         constexpr auto p_idx1 = tile_distributed_index<i_n0>{};
                         constexpr auto p_idx  = ck_tile::make_tuple(p_idx0, p_idx1);
                         p_compute(p_idx)      = randval[r_idx] <= p_undrop_in_uint8_t
@@ -692,7 +651,8 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
         }
     }
 
-    ck_tile::philox ph;
+    const unsigned long long ph_seed;
+    const unsigned long long ph_head_offset;
     const float rp_undrop;
     const uint8_t p_undrop_in_uint8_t;
 };

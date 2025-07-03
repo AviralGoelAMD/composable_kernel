@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -462,7 +462,7 @@ class FmhaBwdDQDKDVKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size & pipeline.
-def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict]:
+def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype : str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
@@ -477,14 +477,30 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict
     else:
         return None
 
+def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        # TODO: Investigate why kr_ktr_vr_iglp is usually slower
+        return {
+            #                              bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
+            '32'  : [FmhaBwdDQDKDVTileSize( 32,  64,  32,  32,  32,  32,  64,   32,   32,  1, 4, 1,  4, 1, 1,  2, 2, 1,  16, 16, 16,  16, 16, 16, -1), "kr_ktr_vr", "kr_ktr_vr"],
+            '64'  : [FmhaBwdDQDKDVTileSize( 32,  64,  64,  32,  64,  32,  32,   64,   64,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1), "kr_ktr_vr", "kr_ktr_vr"],
+            '128' : [FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  32,  128,  128,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1), "kr_ktr_vr", "kr_ktr_vr"],
+            '256' : [FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  32,  256,  256,  1, 4, 1,  4, 1, 1,  1, 4, 1,  16, 16, 16,  16, 16, 16, -1), "kr_ktr_vr", "kr_ktr_vr"],
+        }
+    else:
+        return None
+
 def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdDQDKDVKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for pad
     #       support this in future
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
         if d == None:
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
@@ -663,8 +679,12 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
 
     gen = list()
 
+
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -820,8 +840,12 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
 
     gen = list()
 
+
+    # TODO: Pass architecture as an argument?
+    use_gfx12 = True
+
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
