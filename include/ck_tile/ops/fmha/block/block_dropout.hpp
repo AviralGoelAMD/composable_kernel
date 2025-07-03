@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_mfma.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 
 namespace ck_tile {
@@ -87,12 +86,13 @@ struct BlockDropout
         using WG                       = remove_cvref_t<decltype(config.template at<0>())>;
         constexpr bool IsWG32          = WG::kM == 32;
         constexpr index_t MWarp        = config.template at<1>();
+        constexpr index_t NWarp        = config.template at<2>();
         using BlockGemmShape           = remove_cvref_t<typename BlockGemm::BlockGemmShape>;
         constexpr index_t kMPerBlock   = BlockGemmShape::kM;
         constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarp * WG::kM) ? 2 : 1;
         constexpr index_t kMPerStep    = MIterPerWarp * MWarp * WG::kM;
-        constexpr index_t kNPerStep    = WG::kN;
-        constexpr index_t kN1          = 8;
+        constexpr index_t kNPerStep    = NWarp * WG::kN;
+        constexpr index_t kN1          = 16;
         constexpr index_t kN0          = kNPerStep / kN1;
 
         constexpr auto randval_lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -137,37 +137,15 @@ struct BlockDropout
             sequence<1, 0>>{};
 
         // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
-        // TODO: generalize for MFMA and WMMA
-#if CK_TILE_USE_WMMA
         constexpr auto randval_block_inner_part_dstr_encoding =
-            typename WarpGemmDispatcher<typename BlockGemm::ADataType,
-                                        typename BlockGemm::BDataType,
-                                        typename BlockGemm::CDataType,
-                                        (IsWG32 ? 32 : 16),
-                                        (IsWG32 ? 32 : 16),
-                                        16,
+            typename WarpGemmDispatcher<typename WG::ADataType,
+                                        typename WG::BDataType,
+                                        typename WG::CDataType,
+                                        WG::kM,
+                                        WG::kN,
+                                        WG::kK,
                                         false,
                                         IsWG32>::CWarpDstrEncoding{};
-#else
-        constexpr auto randval_block_inner_part_dstr_encoding = []() {
-            if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::BDataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::CDataType, float>)
-            {
-                if constexpr(IsWG32)
-                    return typename WarpGemmMfmaF16F16F32M32N32K16SwizzleA::CWarpDstrEncoding{};
-                else
-                    return typename WarpGemmMfmaF16F16F32M16N16K16::CWarpDstrEncoding{};
-            }
-            else
-            {
-                if constexpr(IsWG32)
-                    return typename WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA::CWarpDstrEncoding{};
-                else
-                    return typename WarpGemmMfmaBf16Bf16F32M16N16K16::CWarpDstrEncoding{};
-            }
-        }();
-#endif
 
         constexpr auto randval_block_part_dstr_encode =
             detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
@@ -239,7 +217,7 @@ struct BlockDropout
         auto randval_dist_generated =
             make_static_distributed_tensor<uint8_t>(MakeRandValTileDistribution<BlockGemm>());
 
-        auto randval_lds_read_window =
+        const auto randval_lds_read_window =
             make_tile_window(randval_lds_window.get_bottom_tensor_view(),
                              randval_lds_window.get_window_lengths(),
                              randval_lds_window.get_window_origin(),
@@ -335,7 +313,7 @@ struct BlockDropout
                 move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
             });
             move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
-        };
+        }
         static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
             static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
                 const auto randval = generate_randval(i_m0, i_n0);
@@ -471,41 +449,18 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
             sequence<1, 2>,
             sequence<1, 0>>{};
 
-        // Use Bwd WarpGemm to ensure that Fwd's random values ​​are consistent with Bwd.
-        // except headdim256.
-        // TODO: generalize for MFMA and WMMA
-#if CK_TILE_USE_WMMA
-        static_assert(!IsWG32);
-
         constexpr auto randval_block_inner_part_dstr_encoding =
-            typename WarpGemmDispatcher<typename BlockGemm::ADataType,
-                                        typename BlockGemm::BDataType,
-                                        typename BlockGemm::CDataType,
-                                        (IsWG32 ? 32 : 16),
-                                        (IsWG32 ? 32 : 16),
-                                        16,
+            typename WarpGemmDispatcher<typename WG::ADataType,
+                                        typename WG::BDataType,
+                                        typename WG::CDataType,
+                                        WG::kM,
+                                        WG::kN,
+                                        WG::kK,
                                         false,
                                         IsWG32>::CWarpDstrEncoding{};
-#else
-        constexpr auto randval_block_inner_part_dstr_encoding = []() {
-            if constexpr(std::is_same_v<typename BlockGemm::ADataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::BDataType, half_t> &&
-                         std::is_same_v<typename BlockGemm::CDataType, float>)
-            {
-                if constexpr(IsWG32)
-                    return typename WarpGemmMfmaF16F16F32M32N32K16SwizzleA::CWarpDstrEncoding{};
-                else
-                    return typename WarpGemmMfmaF16F16F32M16N16K16::CWarpDstrEncoding{};
-            }
-            else
-            {
-                if constexpr(IsWG32)
-                    return typename WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleA::CWarpDstrEncoding{};
-                else
-                    return typename WarpGemmMfmaBf16Bf16F32M16N16K16::CWarpDstrEncoding{};
-            }
-        }();
-#endif
+        static_assert(
+            std::is_same_v<remove_cvref_t<decltype(randval_block_inner_part_dstr_encoding)>,
+                           typename WG::CWarpDstrEncoding>);
 
         constexpr auto randval_block_part_dstr_encode =
             detail::make_embed_tile_distribution_encoding(randval_block_outer_part_dstr_encoding,
