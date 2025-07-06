@@ -21,7 +21,10 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
 
     switch(config.init_method)
     {
-    case 0: break;
+    case 0:
+       out.GenerateTensorValue(GeneratorTensor_1<OutDataType>{1});
+        wei.GenerateTensorValue(GeneratorTensor_1<WeiDataType>{1});
+        break;
     case 1:
         out.GenerateTensorValue(GeneratorTensor_2<OutDataType>{-5, 5});
         wei.GenerateTensorValue(GeneratorTensor_2<WeiDataType>{-5, 5});
@@ -137,6 +140,10 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
         ref_invoker.Run(ref_argument);
 
         in_device_buf.FromDevice(in_device.mData.data());
+
+
+        //dump_tensor(in_device, "in_device_buf");
+        //dump_tensor(in_host, "in_host");
 
         return ck::utils::check_err(in_device.mData, in_host.mData);
     }

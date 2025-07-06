@@ -102,3 +102,250 @@ inline bool parse_cmd_args(int argc,
 
     return true;
 }
+
+
+template <typename DataType>
+void dump_tensor(const Tensor<DataType>& tensor, const char* str)
+{
+    //if(config.dump_tensor == false)
+     //  return;
+    assert(tensor.GetNumOfDimension() >= 4 && tensor.GetNumOfDimension() <= 6);
+    auto lengths = tensor.GetLengths();
+    auto strides = tensor.GetStrides();
+
+    auto numDim = tensor.GetNumOfDimension() - 3;
+    if(numDim == 1)
+    {
+        std::cout << str << "  [ " << std::endl;
+        for(uint32_t i0 = 0; i0 < lengths[0]; i0++)
+        {
+            if(lengths[1] > 1)
+            {
+                std::cout << "  [";
+            }
+            if(i0 > 0 && strides[0] == 0)
+            {
+                continue;
+            }
+            for(uint32_t i1 = 0; i1 < lengths[1]; i1++)
+            {
+                if(lengths[2] > 1)
+                {
+                    std::cout << "  [";
+                }
+                if(i1 > 0 && strides[1] == 0)
+                {
+                    continue;
+                }
+                for(uint32_t i2 = 0; i2 < lengths[2]; i2++)
+                {
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "  [";
+                    }
+                    if(i2 > 0 && strides[2] == 0)
+                    {
+                        continue;
+                    }
+                    for(uint32_t i3 = 0; i3 < lengths[3]; i3++)
+                    {
+                        if(i3 > 0 && strides[3] == 0)
+                        {
+                            continue;
+                        }
+                        std::vector<std::size_t> idx({i0, i1, i2, i3});
+                        std::cout << ck::type_convert<float>(tensor(idx)) << ", ";
+                    }
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "]" << std::endl;
+                    }
+                    if(lengths[3] > 3)
+                    {
+                        std::cout << std::endl;
+                    }
+                }
+                if(lengths[2] > 1)
+                {
+                    std::cout << "]" << std::endl;
+                }
+            }
+            if(lengths[1] > 1)
+            {
+                std::cout << "]" << std::endl;
+            }
+        }
+        std::cout << "]" << std::endl;
+    }
+    else if(numDim == 2)
+    {
+        std::cout << str << "  [ " << std::endl;
+        for(uint32_t i0 = 0; i0 < lengths[0]; i0++)
+        {
+            if(lengths[1] > 1)
+            {
+                std::cout << "  [";
+            }
+            if(i0 > 0 && strides[0] == 0)
+            {
+                continue;
+            }
+            for(uint32_t i1 = 0; i1 < lengths[1]; i1++)
+            {
+                if(lengths[2] > 1)
+                {
+                    std::cout << "  [";
+                }
+                if(i1 > 0 && strides[1] == 0)
+                {
+                    continue;
+                }
+                for(uint32_t i2 = 0; i2 < lengths[2]; i2++)
+                {
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "  [";
+                    }
+                    if(i2 > 0 && strides[2] == 0)
+                    {
+                        continue;
+                    }
+                    for(uint32_t i3 = 0; i3 < lengths[3]; i3++)
+                    {
+                        if(lengths[4] > 1)
+                        {
+                            std::cout << "  [";
+                        }
+                        if(i3 > 0 && strides[3] == 0)
+                        {
+                            continue;
+                        }
+                        for(uint32_t i4 = 0; i4 < lengths[4]; i4++)
+                        {
+                            if(i4 > 0 && strides[4] == 0)
+                            {
+                                continue;
+                            }
+                            std::vector<std::size_t> idx({i0, i1, i2, i3, i4});
+                            std::cout << ck::type_convert<float>(tensor(idx)) << ", ";
+                        }
+                        if(lengths[4] > 1)
+                        {
+                            std::cout << "]";
+                        }
+                        if(lengths[4] > 3)
+                        {
+                            std::cout << std::endl;
+                        }
+                    }
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "]" << std::endl;
+                    }
+                }
+                if(lengths[2] > 1)
+                {
+                    std::cout << "]" << std::endl;
+                }
+            }
+            if(lengths[1] > 1)
+            {
+                std::cout << "]" << std::endl;
+            }
+        }
+        std::cout << "]" << std::endl;
+    }
+    else if(numDim == 3)
+    {
+        std::cout << str << "  [ " << std::endl;
+        for(uint32_t i0 = 0; i0 < lengths[0]; i0++)
+        {
+            if(lengths[1] > 1)
+            {
+                std::cout << "  [";
+            }
+            if(i0 > 0 && strides[0] == 0)
+            {
+                continue;
+            }
+            for(uint32_t i1 = 0; i1 < lengths[1]; i1++)
+            {
+                if(lengths[2] > 1)
+                {
+                    std::cout << "  [";
+                }
+                if(i1 > 0 && strides[1] == 0)
+                {
+                    continue;
+                }
+                for(uint32_t i2 = 0; i2 < lengths[2]; i2++)
+                {
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "  [";
+                    }
+                    if(i2 > 0 && strides[2] == 0)
+                    {
+                        continue;
+                    }
+                    for(uint32_t i3 = 0; i3 < lengths[3]; i3++)
+                    {
+                        if(lengths[4] > 1)
+                        {
+                            std::cout << "  [";
+                        }
+                        if(i3 > 0 && strides[3] == 0)
+                        {
+                            continue;
+                        }
+                        for(uint32_t i4 = 0; i4 < lengths[4]; i4++)
+                        {
+                            if(lengths[5] > 1)
+                            {
+                                std::cout << "  [";
+                            }
+                            if(i4 > 0 && strides[4] == 0)
+                            {
+                                continue;
+                            }
+                            for(uint32_t i5 = 0; i5 < lengths[5]; i5++)
+                            {
+                                if(i5 > 0 && strides[5] == 0)
+                                {
+                                    continue;
+                                }
+                                std::vector<std::size_t> idx({i0, i1, i2, i3, i4, i5});
+                                std::cout << ck::type_convert<float>(tensor(idx)) << ", ";
+                            }
+                            if(lengths[5] > 1)
+                            {
+                                std::cout << "]";
+                            }
+                            if(lengths[5] > 3)
+                            {
+                                std::cout << std::endl;
+                            }
+                        }
+                        if(lengths[4] > 1)
+                        {
+                            std::cout << "]";
+                        }
+                    }
+                    if(lengths[3] > 1)
+                    {
+                        std::cout << "]" << std::endl;
+                    }
+                }
+                if(lengths[2] > 1)
+                {
+                    std::cout << "]" << std::endl;
+                }
+            }
+            if(lengths[1] > 1)
+            {
+                std::cout << "]" << std::endl;
+            }
+        }
+        std::cout << "]" << std::endl;
+    }
+}

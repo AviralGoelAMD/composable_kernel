@@ -311,16 +311,19 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static constexpr bool isATensorColMajor =
         (ConvBackwardDataSpecialization == ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0) &&
         (ABlockTransferSrcVectorDim == 1) &&
-        (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>());
+        (is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
+         is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>());
 
     static constexpr bool NeedTransposeKernel =
-        (isATensorColMajor == false) && (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
-                                         is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>());
+        (isATensorColMajor == false) && (is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
+                                         is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>());
 
     static constexpr bool CTranspose = 
-        (NeedTransposeKernel == false) && (is_same_v<ELayout, tensor_layout::convolution::NGKHW> ||
-                                           is_same_v<ELayout, tensor_layout::convolution::NGKDHW>);                                        
+        (NeedTransposeKernel == false) && (is_same_v<ELayout, tensor_layout::convolution::NGCHW> ||
+                                           is_same_v<ELayout, tensor_layout::convolution::NGCDHW>);    
+                                                                        
+    static_assert(CTranspose);
+    static_assert(isATensorColMajor);
 
     using ALayoutAfterTranspose = std::conditional_t<
         is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() && NeedTransposeKernel,
