@@ -150,7 +150,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         group_id = index_t((left + right) / 2);
     }
 
-    if(gemm_kernel_args[group_id].HasMainKBlockLoop_)
+    //if(gemm_kernel_args[group_id].HasMainKBlockLoop_)
+    if constexpr(HasMainKBlockLoop)
     {
         GridwiseGemm::template Run<true, OutElementOp>(
             p_a_grid + a_batch_offset + a_n_offset,
@@ -287,15 +288,17 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     // implementation we can avoid copy data to workspace before kernel launch since number of
     // groups is runtime parameter. If number of groups is larger than MaxGroupedGemmGroupsNum  then
     // we run this kernel in the loop.
-    static constexpr index_t MaxGroupedGemmGroupsNum = 32;
+    static constexpr index_t MaxGroupedGemmGroupsNum = 1;
 
     using DeviceOp = DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1;
 
     static constexpr index_t NumDTensor          = DsDataType::Size();
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;
-    static constexpr bool IsSplitKSupported =
+    static constexpr bool IsSplitKSupported = false;
+    #if 0
         (CDEBlockTransferScalarPerVector_NPerBlock % 2 == 0 || sizeof(EDataType) % 4 == 0) &&
         std::is_same_v<remove_cvref_t<CDEElementwiseOp>, element_wise::PassThrough>;
+    #endif
 
     // TODO: Add support for different A and B data types.
     using ABDataType = ADataType;
@@ -315,9 +318,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         (isATensorColMajor == false) && (is_NGCHW_NGKHW<ALayout, BLayout, ELayout>() ||
                                          is_NGCDHW_NGKDHW<ALayout, BLayout, ELayout>());
 
-    static constexpr bool CTranspose =
+    static constexpr bool CTranspose = 
         (NeedTransposeKernel == false) && (is_same_v<ELayout, tensor_layout::convolution::NGKHW> ||
-                                           is_same_v<ELayout, tensor_layout::convolution::NGKDHW>);
+                                           is_same_v<ELayout, tensor_layout::convolution::NGKDHW>);                                        
 
     using ALayoutAfterTranspose = std::conditional_t<
         is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() && NeedTransposeKernel,
