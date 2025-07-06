@@ -68,10 +68,123 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
     copy(conv_params.input_left_pads_, input_left_pads);
     copy(conv_params.input_right_pads_, input_right_pads);
 
-    static_assert(std::is_default_constructible_v<DeviceConvInstance>);
 
+    if(config.do_verification)
+    {
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                                         InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         PassThrough,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>();
+
+        auto ref_invoker = ref_conv.MakeInvoker();
+
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
+                                                  conv_params.conv_filter_strides_,
+                                                  conv_params.conv_filter_dilations_,
+                                                  conv_params.input_left_pads_,
+                                                  conv_params.input_right_pads_,
+                                                  PassThrough{},
+                                                  wei_element_op,
+                                                  out_element_op);
+
+        ref_invoker.Run(ref_argument);
+
+        //in_device_buf.FromDevice(in_device.mData.data());
+
+
+        //dump_tensor(in_device, "in_device_buf");
+        //dump_tensor(in_host, "in_host");
+
+        //return ck::utils::check_err(in_device.mData, in_host.mData);
+    }
+#if defined(ENABLE_CONV_FACTORY)
+    float best_tflops = 0;
+    float best_gb_per_sec = 0;
+    float best_avg_time = 0;
+    std::string best_kernel = "";
+
+    ck::index_t instance_idx = 0;
+    bool found_kernel= false;
+    ck::static_for<0, std::tuple_size_v<DeviceConvBwdFactory>, 1>{}([&](auto i) -> void {
+        // do Conv
+        const auto device_conv_bwd_instance = std::get<i>(DeviceConvBwdFactory{});
+        using DeviceConvBwdInstance = ck::remove_cvref_t<decltype(device_conv_bwd_instance)>;
+        auto conv     = DeviceConvBwdInstance{};
+        //    static_assert(std::is_default_constructible_v<typename DeviceConvBwdInstance>);
+        auto invoker  = conv.MakeInvoker();
+        auto argument = conv.MakeArgument(out_device_buf.GetDeviceBuffer(),
+                                            wei_device_buf.GetDeviceBuffer(),
+                                            std::array<const void*, 0>{},
+                                            in_device_buf.GetDeviceBuffer(),
+                                            a_g_n_k_wos_lengths,
+                                            a_g_n_k_wos_strides,
+                                            b_g_k_c_xs_lengths,
+                                            b_g_k_c_xs_strides,
+                                            std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                            std::array<std::array<ck::index_t, NDimSpatial + 3>, 0>{},
+                                            e_g_n_c_wis_lengths,
+                                            e_g_n_c_wis_strides,
+                                            conv_filter_strides,
+                                            conv_filter_dilations,
+                                            input_left_pads,
+                                            input_right_pads,
+                                            out_element_op,
+                                            wei_element_op,
+                                            in_element_op);
+
+        if(conv.IsSupportedArgument(argument))
+        {
+            found_kernel = true;
+            float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
+            if(config.time_kernel)
+            {
+                std::size_t flop = conv_params.GetFlops();
+                std::size_t num_btype = conv_params.GetByte<InDataType, WeiDataType, OutDataType>();
+
+                float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+                std::cout << "Perf: " << avg_time << " ms, " << tflops << " TFlops, " << gb_per_sec
+                          << " GB/s, " << conv.GetTypeString() << std::endl;
+
+                if(tflops > best_tflops)
+                {
+                    best_tflops     = tflops;
+                    best_gb_per_sec = gb_per_sec;
+                    best_avg_time   = avg_time;
+                    best_kernel     = conv.GetTypeString();
+                    instance_idx    = i;
+                }
+            }
+            if(config.do_verification)
+            {
+                in_device_buf.FromDevice(in_device.mData.data());
+                ck::utils::check_err(in_device.mData, in_host.mData);
+                //dump_tensor(out_device, "out");
+            }
+        }
+    });
+    if (found_kernel == false)
+    {
+        std::cerr << "wrong! device_conv with the specified compilation parameters does "
+                "not support this Conv problem"
+            << std::endl;
+        return true;
+    }
+    if(config.time_kernel)
+    {
+        std::cout << "Best Perf: " << best_avg_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
+                  << " GB/s" << std::endl
+                  << "Instance: " << instance_idx << " DeviceOp: " << best_kernel << std::endl;
+    }
+#else
     // do conv
     auto conv     = DeviceConvInstance{};
+    static_assert(std::is_default_constructible_v<DeviceConvInstance>);
     auto invoker  = conv.MakeInvoker();
     auto argument = conv.MakeArgument(out_device_buf.GetDeviceBuffer(),
                                       wei_device_buf.GetDeviceBuffer(),
@@ -116,37 +229,10 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
 
     if(config.do_verification)
     {
-        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
-                                                                         InDataType,
-                                                                         WeiDataType,
-                                                                         OutDataType,
-                                                                         PassThrough,
-                                                                         WeiElementOp,
-                                                                         OutElementOp>();
-
-        auto ref_invoker = ref_conv.MakeInvoker();
-
-        auto ref_argument = ref_conv.MakeArgument(in_host,
-                                                  wei,
-                                                  out,
-                                                  conv_params.conv_filter_strides_,
-                                                  conv_params.conv_filter_dilations_,
-                                                  conv_params.input_left_pads_,
-                                                  conv_params.input_right_pads_,
-                                                  PassThrough{},
-                                                  wei_element_op,
-                                                  out_element_op);
-
-        ref_invoker.Run(ref_argument);
-
         in_device_buf.FromDevice(in_device.mData.data());
-
-
-        //dump_tensor(in_device, "in_device_buf");
-        //dump_tensor(in_host, "in_host");
-
         return ck::utils::check_err(in_device.mData, in_host.mData);
     }
+#endif
 
     return true;
 }
