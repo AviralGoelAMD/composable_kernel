@@ -1392,7 +1392,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     {
         if(!ck::is_xdl_supported())
         {
-            return false;
+            //return false;
         }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<EDataType, ck::bhalf_t> &&
@@ -1566,8 +1566,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             }
         }
 
-        if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
-                     is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+        //if constexpr(is_NGCHW_NGKHW<ELayout, BLayout, ALayout>() ||
+        //             is_NGCDHW_NGKDHW<ELayout, BLayout, ALayout>())
+        if constexpr (NeedTransposeKernel)
         {
             if((ConvG * ConvC) % CDEBlockTransferScalarPerVector_NPerBlock != 0)
             {
