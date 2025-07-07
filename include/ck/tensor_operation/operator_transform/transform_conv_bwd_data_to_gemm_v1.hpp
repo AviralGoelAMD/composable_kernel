@@ -563,16 +563,15 @@ struct TransformConvBwdDataToGemm_v1
                           ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                               Filter1x1Stride1Pad0);
 
-            const auto out_gemm_raw_grid_desc =  make_naive_tensor_descriptor(make_tuple(N_, Ho_ * Wo_, K_),
-                                                make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
+            const auto out_gemm_raw_grid_desc = make_naive_tensor_descriptor(
+                make_tuple(N_, Ho_ * Wo_, K_), make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
 
             return transform_tensor_descriptor(
-                    out_gemm_raw_grid_desc,
-                    make_tuple(
-                        make_merge_transform(make_tuple(N_, Ho_ * Wo_)),
-                        make_pass_through_transform(K_)),
-                    make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+                out_gemm_raw_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Ho_ * Wo_)),
+                           make_pass_through_transform(K_)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
         else if constexpr(is_same_v<ALayout, tensor_layout::convolution::NGKDHW>)
         {
@@ -581,16 +580,16 @@ struct TransformConvBwdDataToGemm_v1
                           ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
                               Filter1x1Stride1Pad0);
 
-            const auto out_gemm_raw_grid_desc =   make_naive_tensor_descriptor(make_tuple(N_,  Do_ * Ho_ * Wo_, K_),
-                                                make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
+            const auto out_gemm_raw_grid_desc =
+                make_naive_tensor_descriptor(make_tuple(N_, Do_ * Ho_ * Wo_, K_),
+                                             make_tuple(NStrideTensorA_, I1, KStrideTensorA_));
 
             return transform_tensor_descriptor(
-                    out_gemm_raw_grid_desc,
-                    make_tuple(
-                        make_merge_transform(make_tuple(N_, Do_ * Ho_ * Wo_)),
-                        make_pass_through_transform(K_)),
-                    make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
-                    make_tuple(Sequence<0>{}, Sequence<1>{}));
+                out_gemm_raw_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(N_, Do_ * Ho_ * Wo_)),
+                           make_pass_through_transform(K_)),
+                make_tuple(Sequence<0, 1>{}, Sequence<2>{}),
+                make_tuple(Sequence<0>{}, Sequence<1>{}));
         }
         else
         {

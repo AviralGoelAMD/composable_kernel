@@ -65,6 +65,7 @@ using DeviceConvBwdFactory = std::tuple<
         ,ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,   F16,   F16,     F32,      F16,    Empty_Tuple,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, true,  true,        1,  256,   64,    128,    32,   8,   8,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>, 1,              1,             8,         1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>, 1,              2,              8,         1,           1,           1,               S<1, 32, 1, 8>,              1>
         ,ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,   F16,   F16,     F32,      F16,    Empty_Tuple,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, true,  true,        1,  64,    64,     32,    32,   8,   8,   32,   32,    2,    1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>, 1,              1,             8,         1,     S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>, 1,              1,              8,         1,           1,           1,               S<1, 8, 1, 8>,               1>   
 >;
+#endif
 
 #include "run_grouped_conv_bwd_data_example.inc"
 
