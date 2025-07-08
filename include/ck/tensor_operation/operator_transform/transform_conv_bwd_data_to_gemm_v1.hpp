@@ -898,7 +898,6 @@ struct TransformConvBwdDataToGemm_v1
     {
         // assume packed
         // k_y_x_c for 2d or k_z_y_x_c for 3d
-        const auto wei_grid_desc = MakeWeiGridDesc();
 
         if constexpr(ConvBwdDataSpecialization ==
                      ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::
@@ -927,6 +926,7 @@ struct TransformConvBwdDataToGemm_v1
         }
         else
         {
+            const auto wei_grid_desc = MakeWeiGridDesc();
             static_assert(is_same_v<BLayout_, tensor_layout::convolution::GKYXC> ||
                           is_same_v<BLayout_, tensor_layout::convolution::GKZYXC>);
             // GemmK is different for each GEMM
