@@ -7,6 +7,8 @@
 
 namespace ck_tile {
 
+// Philox-4x32-7 generates four 32-bit values using 7 rounds.
+// It has a period of 2^128 and supports fast jumping by 2^64 (subsequence).
 // Reference: https://github.com/Dao-AILab/flash-attention/blob/main/csrc/flash_attn/src/philox.cuh
 class philox
 {
@@ -24,13 +26,12 @@ class philox
                        static_cast<unsigned int>(subsequence >> 32)};
 
         uint2 key_{static_cast<unsigned int>(seed), static_cast<unsigned int>(seed >> 32)};
-// 7-round philox
 #pragma unroll
-        for(int i = 0; i < 6; i++)
+        for(int i = 0; i < kPhiloxRounds - 1; i++)
         {
             counter_ = philox_single_round(counter_, key_);
-            key_.x += kPhilox10A;
-            key_.y += kPhilox10B;
+            key_.x += kPhiloxWA;
+            key_.y += kPhiloxWB;
         }
         return philox_single_round(counter_, key_);
     }
@@ -94,15 +95,17 @@ class philox
 
     CK_TILE_HOST_DEVICE uint4 philox_single_round(const uint4 ctr, const uint2 key) const
     {
-        uint2 res0 = mulhilo32(kPhiloxSA, ctr.x);
-        uint2 res1 = mulhilo32(kPhiloxSB, ctr.z);
+        uint2 res0 = mulhilo32(kPhiloxMA, ctr.x);
+        uint2 res1 = mulhilo32(kPhiloxMB, ctr.z);
         return uint4{res1.y ^ ctr.y ^ key.x, res1.x, res0.y ^ ctr.w ^ key.y, res0.x};
     }
 
-    static const unsigned int kPhilox10A = 0x9E3779B9;
-    static const unsigned int kPhilox10B = 0xBB67AE85;
-    static const unsigned int kPhiloxSA  = 0xD2511F53;
-    static const unsigned int kPhiloxSB  = 0xCD9E8D57;
+    static constexpr unsigned int kPhiloxWA = 0x9E3779B9;
+    static constexpr unsigned int kPhiloxWB = 0xBB67AE85;
+    static constexpr unsigned int kPhiloxMA = 0xD2511F53;
+    static constexpr unsigned int kPhiloxMB = 0xCD9E8D57;
+
+    static constexpr int kPhiloxRounds = 7;
 };
 
 } // namespace ck_tile

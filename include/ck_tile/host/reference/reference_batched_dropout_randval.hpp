@@ -33,6 +33,8 @@ reference_batched_dropout_randval(HostTensor<RandValOutputDataType>& randval_b_m
     // With SFactor = 2 it becomes:
     // C i: (16 * floor(GPR_num / 8) % 32) + 8 * floor(lane / 32) + (GPR_num % 8)
     // C j: (lane % 32)
+    // This order is reproduced for WMMA warp gemms, see more details in
+    // ops/fmha/block/block_dropout.hpp
 
     constexpr index_t max_warp_size = 64;
     constexpr index_t warp_gemm_mn  = 32;

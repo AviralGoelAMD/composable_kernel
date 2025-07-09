@@ -8,6 +8,24 @@
 
 namespace ck_tile {
 
+// BlockDropoutBwd and BlockDropout (fwd) support two warp gemm tile sizes: 32x32 (MFMA only) and
+// 16x16 (MFMA and WMMA). fwd and bwd can use different tile sizes, generated random numbers will be
+// the same. It is also the same for MFMA and WMMA. The (batch, head, lane) coordinate determines an
+// offset in a random sequence, the (row, col) coordinate of the current 32x32 tile in the P matrix
+// determines a subsequence. This means that sequences are non-overlapping, reproducible and
+// independent of mask or window.
+//
+// There are 3 modes (all produce the same results):
+//  * For 32x32 MFMA tile each of 64 lanes generates 4 * 32 bits or 16 bytes, so one warp generates
+//  the entire 32x32 tile (64 * 16 = 32 * 32).
+//  * For 16x16 MFMA tile one warp generates 1/4 of the 32x32 tile ((16 * 16) / (64 * 16) = 1/4), 4
+//  warps generate the same 64 * 16 random bytes and each uses its own quarter. If kMPerBlock >
+//  MWarp * WG::kM one warp can generate two 16x16 tiles (MIterPerWarp = 2) so fewer instructions
+//  are needed for generating a 32x32 tile.
+//  * For 16x16 WMMA tile one warp generates 1/2 of the 32x32 tile ((16 * 16) / (32 * 16) = 1/2), 2
+//  warps generate the same 64 * 16 random bytes and each uses its own half. If kMPerBlock > MWarp *
+//  WG::kM one warp can generate two 16x16 tiles.
+
 struct NullBlockDropout
 {
     template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
@@ -93,7 +111,7 @@ struct BlockDropout
         constexpr index_t MIterPerWarp = (!IsWG32 && kMPerBlock > MWarp * WG::kM) ? 2 : 1;
         constexpr index_t kMPerStep    = MIterPerWarp * MWarp * WG::kM;
         constexpr index_t kNPerStep    = NWarp * WG::kN;
-        constexpr index_t kN1          = 16;
+        constexpr index_t kN1          = 8;
         constexpr index_t kN0          = kNPerStep / kN1;
 
         constexpr auto randval_lds_block_desc_0 = make_naive_tensor_descriptor(
@@ -358,7 +376,7 @@ struct BlockDropoutBwd<false, IsWG32_, IsStoreRandval_>
     static constexpr bool IsDropout      = false;
     static constexpr bool IsStoreRandval = IsStoreRandval_;
 
-    template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
+    template <typename BlockGemm, bool IsFwd = false, typename RandValDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE static constexpr auto
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                           index_t seqlen_qk_start)
@@ -391,7 +409,7 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
     {
     }
 
-    template <typename BlockGemm, bool IsFwd = true, typename RandValDramBlockWindowTmp>
+    template <typename BlockGemm, bool IsFwd = false, typename RandValDramBlockWindowTmp>
     CK_TILE_HOST_DEVICE static constexpr auto
     MakeRandvalDramWindow(RandValDramBlockWindowTmp& randval_dram_block_window_tmp,
                           index_t seqlen_qk_start)
