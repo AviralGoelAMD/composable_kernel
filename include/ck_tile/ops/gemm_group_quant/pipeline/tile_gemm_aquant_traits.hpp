@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,7 +20,6 @@ struct TileGemmAQuantTraits
     static constexpr bool kPadN = kPadN_;
     static constexpr bool kPadK = kPadK_;
 
-    // TODO this can't be hardcoded here! Should be in policy!
     static constexpr int _VectorSize = 16;
 
     using ALayout  = ALayout_;

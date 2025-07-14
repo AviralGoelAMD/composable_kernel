@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstring>
 #include <iostream>
 #include <ostream>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 
@@ -60,7 +61,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
                                                                  CodegenGemmTraits,
                                                                  ComputeDataType>;
 
-    using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
     const ck_tile::index_t K_split      = (args.K + K_Tile - 1) / K_Tile * K_Tile;
     const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
@@ -112,7 +113,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
         constexpr dim3 blocks = Kernel::BlockSize();
 
-        assert(args.k_batch == 1 && "split-k is not supported yet!");
+        if(args.k_batch != 1)
+        {
+            throw std::runtime_error("split-k is not supported yet!");
+        }
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -135,56 +139,7 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
 
         return ave_time;
     };
-    if(has_hot_loop)
-    {
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            return Run(
-                ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            return Run(ck_tile::bool_constant<true>{},
-                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            return Run(
-                ck_tile::bool_constant<true>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported tail number for this operation !!!");
-        }
-    }
-    else
-    {
-        if(tail_num == ck_tile::TailNumber::Full)
-        {
-            return Run(
-                ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Odd)
-        {
-            return Run(ck_tile::bool_constant<false>{},
-                       ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-        }
-        else if(tail_num == ck_tile::TailNumber::Even)
-        {
-            return Run(
-                ck_tile::bool_constant<false>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported tail number for this operation !!!");
-        }
-    }
-
-    return 0.f;
+    return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
 }
 
 #include "run_gemm_aquant_example.inc"

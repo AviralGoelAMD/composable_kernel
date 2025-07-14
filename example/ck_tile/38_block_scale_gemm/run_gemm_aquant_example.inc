@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <bit>
@@ -10,27 +10,6 @@ static constexpr inline auto is_row_major(Layout layout_)
 {
     return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
                                                  ck_tile::tensor_layout::gemm::RowMajor>>{};
-}
-
-template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
-auto calculate_rtol_atol(const ck_tile::index_t K,
-                         const ck_tile::index_t kbatch,
-                         const float max_accumulated_value)
-{
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
-    // Calculate thresholds
-    const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
-        ck_tile::integer_divide_ceil(K, kbatch));
-    const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
-        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
-    // Calculate error due to split_k accumulation
-    const auto rtol_split_k =
-        ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
-    const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
-        max_accumulated_value, kbatch);
-    // Use higher threshold
-    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
 template <typename ADataType,
@@ -133,7 +112,11 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
-    assert(K % QuantGroupSize == 0 && "K must be aligned with QuantGroupSize");
+    if(K % QuantGroupSize != 0)
+    {
+        throw std::runtime_error("K must be aligned with QuantGroupSize");
+    }
+
     ck_tile::index_t AQK = K / QuantGroupSize;
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
@@ -166,34 +149,14 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
-        if(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
+        if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
         {
-            constexpr auto int4_array = std::array<uint8_t, 16>{0x77,
-                                                                0x66,
-                                                                0x55,
-                                                                0x44,
-                                                                0x33,
-                                                                0x22,
-                                                                0x11,
-                                                                0x00,
-                                                                0xff,
-                                                                0xee,
-                                                                0xdd,
-                                                                0xcc,
-                                                                0xbb,
-                                                                0xaa,
-                                                                0x99,
-                                                                0x88};
-            std::uniform_int_distribution<std::uint32_t> dis(0, 15);
-            for(size_t i = 0; i < a_m_k.size(); i++)
-            {
-                int randomInt   = dis(gen);
-                a_m_k.data()[i] = int4_array[randomInt];
-            }
+            ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                a_m_k);
         }
         else
         {
-            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
         }
         ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(aq_m_aqk);
         ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
@@ -220,9 +183,6 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
-
-    // static_assert(!GemmConfig::PermuteA, "Not implemented");
-    // static_assert(!GemmConfig::PermuteB, "Not implemented");
 
     a_m_k_dev_buf.ToDevice(a_m_k.data());
     aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());

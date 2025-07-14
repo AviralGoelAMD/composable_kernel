@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -11,13 +11,63 @@
 
 namespace ck_tile {
 
+template <typename Problem, index_t UnaryOpSize_ = 8>
+struct BlockGemmQuantBase
+{
+    using AQDataType      = remove_cvref_t<typename Problem::AQDataType>;
+    using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
+
+    static constexpr index_t UnaryOpSize = UnaryOpSize_;
+    template <typename T>
+    CK_TILE_DEVICE static float cvt_scale_to_fp32(T scale)
+    {
+        float scale_reg_f = 0.f;
+        if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
+        {
+            scale_reg_f =
+                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
+        }
+        else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
+        {
+            scale_reg_f =
+                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
+        }
+        else if constexpr(std::is_same_v<AQDataType, float>)
+        {
+            scale_reg_f = ck_tile::bit_cast<float>(scale);
+        }
+        else
+        {
+            static_assert(false, "AQDataType must be float, fp8_t or bf8_t.");
+        }
+        return scale_reg_f;
+    }
+
+    template <typename WarpWindow, typename WarpTile>
+    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
+                                                        const WarpWindow& warp_window)
+    {
+        const element_wise::PassThroughPack8 elementwise_op{};
+
+        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
+        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
+        const auto in_dstr_tensors           = load_tile(warp_window);
+
+        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
+        });
+    }
+};
+
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
 // Consecutive kQuantGroupSize elements of A are quantized with a separate scale.
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_, typename Policy_ = BlockGemmASmemBSmemCRegV1DefaultPolicy>
-struct AQuantBlockUniversalGemmAsBsCr
+struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
 {
     private:
     template <typename PipelineProblem_, typename GemmPolicy_>
@@ -124,6 +174,8 @@ struct AQuantBlockUniversalGemmAsBsCr
     using ComputeDataType = remove_cvref_t<typename Traits::ComputeDataType>;
     using CDataType       = remove_cvref_t<typename Traits::CDataType>;
 
+    using Base = BlockGemmQuantBase<Problem_>;
+
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -165,31 +217,6 @@ struct AQuantBlockUniversalGemmAsBsCr
 
     using I0 = number<0>;
     using I1 = number<1>;
-
-    template <typename T>
-    CK_TILE_DEVICE static float cvt_scale_to_fp32(T& scale)
-    {
-        float scale_reg_f = 0.f;
-        if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
-        {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
-        }
-        else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
-        {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
-        }
-        else if constexpr(std::is_same_v<AQDataType, float>)
-        {
-            scale_reg_f = ck_tile::bit_cast<float>(scale);
-        }
-        else
-        {
-            static_assert(false, "AQDataType must be float, fp8_t or bf8_t.");
-        }
-        return scale_reg_f;
-    }
 
     CK_TILE_DEVICE static constexpr auto MakeABlockDistributionEncode()
     {
@@ -244,26 +271,6 @@ struct AQuantBlockUniversalGemmAsBsCr
     }
 
     private:
-    template <typename WarpWindow, typename WarpTile>
-    CK_TILE_DEVICE static void load_interleaved_pk_type(WarpTile& warp_tile,
-                                                        const WarpWindow& warp_window)
-    {
-        constexpr index_t UnaryOpSize = 8;
-        const element_wise::PassThroughPack8 elementwise_op{};
-        constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
-        const auto in_dstr_tensors           = load_tile(warp_window);
-
-        static_assert(WarpTile::get_thread_buffer_size() % UnaryOpSize == 0);
-
-        static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                      std::is_same_v<ComputeDataType, bf8_t>);
-        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
-        static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
-                           in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
-        });
-    }
-
     template <GemmPipelineScheduler Scheduler, typename GemmTraits>
     struct BlockGemmImpl
     {
@@ -272,24 +279,6 @@ struct AQuantBlockUniversalGemmAsBsCr
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>
     {
-        private:
-        template <int mIter, int kIter>
-        CK_TILE_DEVICE void LoadAWarpTensorFromBlockTensor(AWarpTensor& warp_tensor)
-        {
-            warp_tensor.get_thread_buffer() = a_warp_tile_.get_y_sliced_thread_data(
-                merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
-        }
-
-        template <int nIter, int kIter>
-        CK_TILE_DEVICE void LoadBWarpTensorFromBlockTensor(BWarpTensor& warp_tensor)
-        {
-            warp_tensor.get_thread_buffer() = b_warp_tile_.get_y_sliced_thread_data(
-                merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
-                merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
-        }
-
-        public:
         static constexpr auto ALdsTileDistr =
             decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
@@ -307,7 +296,9 @@ struct AQuantBlockUniversalGemmAsBsCr
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
+                Base::load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else
             {
@@ -315,7 +306,9 @@ struct AQuantBlockUniversalGemmAsBsCr
             }
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
+                              std::is_same_v<ComputeDataType, bf8_t>);
+                Base::load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else
             {
@@ -337,21 +330,26 @@ struct AQuantBlockUniversalGemmAsBsCr
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
-            constexpr auto count_q_scale = KIterPerWarp / Traits::KIterPerQScale;
             // hot loop:
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     CWarpTensor c_warp_tensor;
 
-                    static_for<0, count_q_scale, 1>{}([&](auto kQScale) {
+                    static_for<0, Traits::QScalesPerBlockRow, 1>{}([&](auto kQScale) {
                         static_for<0, Traits::KIterPerQScale, 1>{}([&](auto kIterInQScale) {
                             constexpr auto kIter = kQScale * Traits::KIterPerQScale + kIterInQScale;
 
                             AWarpTensor a_warp_tensor;
-                            LoadAWarpTensorFromBlockTensor<mIter, kIter>(a_warp_tensor);
+                            a_warp_tensor.get_thread_buffer() =
+                                a_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
                             BWarpTensor b_warp_tensor;
-                            LoadBWarpTensorFromBlockTensor<nIter, kIter>(b_warp_tensor);
+                            b_warp_tensor.get_thread_buffer() =
+                                b_warp_tile_.get_y_sliced_thread_data(
+                                    merge_sequences(sequence<nIter, kIter>{}, b_warp_y_index_zeros),
+                                    merge_sequences(sequence<1, 1>{}, b_warp_y_lengths));
 
                             if constexpr(kIterInQScale == 0)
                             {
@@ -362,6 +360,22 @@ struct AQuantBlockUniversalGemmAsBsCr
                                 WarpGemm{}(c_warp_tensor, a_warp_tensor, b_warp_tensor);
                             }
                         });
+
+                        // Need to multiply aquant with accumulated C
+                        //
+                        // The accumulated C tile has the standard distribution. For example
+                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
+                        // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
+                        // [26,0], [27,0].
+                        //
+                        // These elements are in different rows, need to get the scale value
+                        // for the corresponding row.
+                        // Based on aquant's tile distribution, it can be inferred which
+                        // lane holds the relevant scale. For example, the scales corresponding
+                        // to the 16 elements held by lane 0 are held by lanes 0, 1, 2, 3, 8, 9,
+                        // 10, 11, 16, 17, 18, 19, 24, 25, 26, 27 respectively.
+                        //
+                        // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
 
                         // MIters per warp
                         constexpr index_t mIters_per_warp = get_warp_size() / WarpGemm::kM;
@@ -374,9 +388,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                             (mIter % mIters_per_warp) * WarpGemm::kM;
 
                         // Scale tensor offset along K
-                        constexpr index_t src_reg_offset =
-                            reg_block_offset + ((kQScale * Traits::KIterPerQScale * WarpGemm::kK) /
-                                                Traits::kQuantGroupSize);
+                        constexpr index_t src_reg_offset = reg_block_offset + kQScale;
 
                         constexpr uint32_t kTileRows        = 4;
                         constexpr uint32_t kTiledCMsPerWarp = WarpGemm::kCMLane * kTileRows;
@@ -418,7 +430,7 @@ struct AQuantBlockUniversalGemmAsBsCr
                             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                                 src_lane_idx * 4, __builtin_bit_cast(int, scale_reg_dword));
 
-                            float scale_reg_f = cvt_scale_to_fp32(gathered_scale_reg);
+                            float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
 
                             c_block_tensor
                                 .get_thread_buffer()[tbuf_offset + reg_offset_for_row_data] +=
@@ -468,16 +480,6 @@ struct AQuantBlockUniversalGemmAsBsCr
                                    const BSmemBlockWindow& b_block_window)
     {
         block_gemm_impl_(c_block_tensor, aq_block_tensor, a_block_window, b_block_window);
-    }
-
-    // C = A * B
-    template <typename ASmemBlockWindow, typename BSmemBlockWindow>
-    CK_TILE_DEVICE auto operator()(const ASmemBlockWindow& a_block_window,
-                                   const BSmemBlockWindow& b_block_window)
-    {
-        auto c_block_tensor = MakeCBlockTile();
-        block_gemm_impl_(c_block_tensor, a_block_window, b_block_window);
-        return c_block_tensor;
     }
 
     private:
