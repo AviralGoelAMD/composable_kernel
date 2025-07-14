@@ -346,11 +346,14 @@ int main(int argc, char* argv[])
 {
     try
     {
-#ifdef CK_TILE_USE_WMMA
-        return !run_gemm_example<GemmConfigComputeV3_WMMA>(argc, argv);
-#else
-        return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
-#endif
+        if(ck_tile::is_gfx11_supported() || ck_tile::is_gfx12_supported())
+        {
+            return !run_gemm_example<GemmConfigComputeV3_WMMA>(argc, argv);
+        }
+        else
+        {
+            return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+        }
     }
     catch(const std::runtime_error& e)
     {

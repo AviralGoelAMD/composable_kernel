@@ -33,7 +33,7 @@ template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaF16F16F32M4N64K16; };
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaF16F16F32M64N4K16; };
 // WMMA cases
-#ifdef CK_TILE_USE_WMMA
+#if defined(__gfx11__) || defined(__gfx12__)
 template<bool TransposeC> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_f32_16x16x16_f16_f16<TransposeC>;};
 #else
 template<> struct WarpGemmDispatcher<ck_tile::half_t, ck_tile::half_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaF16F16F32M16N16K16; };
@@ -59,7 +59,7 @@ template<> struct WarpGemmDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 16
 template<> struct WarpGemmDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float,  4, 64, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M4N64K16; };
 template<> struct WarpGemmDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 64,  4, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M64N4K16; };
 // WMMA cases
-#ifdef CK_TILE_USE_WMMA
+#if defined(__gfx11__) || defined(__gfx12__)
 template<bool TransposeC> struct WarpGemmDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_f32_16x16x16_bf16_bf16<TransposeC>; };
 #else
 template<> struct WarpGemmDispatcher<ck_tile::bf16_t, ck_tile::bf16_t, float, 16, 16, 16, false> { using Type = WarpGemmMfmaBf16Bf16F32M16N16K16; };
