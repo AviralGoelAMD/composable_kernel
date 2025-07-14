@@ -346,7 +346,11 @@ int main(int argc, char* argv[])
 {
     try
     {
+#ifdef CK_TILE_USE_WMMA
+        return !run_gemm_example<GemmConfigComputeV3_WMMA>(argc, argv);
+#else
         return !run_gemm_example<GemmConfigComputeV3>(argc, argv);
+#endif
     }
     catch(const std::runtime_error& e)
     {
@@ -354,5 +358,4 @@ int main(int argc, char* argv[])
         // Return a non-zero code to indicate failure
         return EXIT_FAILURE;
     }
-    return EXIT_SUCCESS;
 }
