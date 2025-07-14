@@ -42,7 +42,6 @@ This file lists technical acronyms found throughout the Composable Kernel codeba
 | MLP     | Multi-Layer Perceptron | Standard feedforward neural network |
 | MoE     | Mixture of Experts | Neural network architecture with multiple expert subnetworks |
 | MQA     | Multi-Query Attention | Variant of multi-head attention with shared keys/values across heads |
-| NCCL    | NVIDIA Collective Communications Library | NVIDIA Library for multi-GPU communication |
 | RCCL    | ROCm Collective Communications Library | AMD Library for multi-GPU communication |
 | NCHW    | Batch, Channel, Height, Width | Tensor layout: batch-major, channels-first |
 | NHWC    | Batch, Height, Width, Channel | Tensor layout: batch-major, channels-last |
