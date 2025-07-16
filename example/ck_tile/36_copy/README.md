@@ -19,7 +19,6 @@ $$
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of the input matrix.
-- **Tile Engine**: Demonstrates all stages of data movement: DRAM $\leftrightarrow$ registers $\leftrightarrow$ LDS $\leftrightarrow$ registers $\leftrightarrow$ DRAM.
 - **Pipeline**: Simple, but can be extended for more complex memory patterns or fused operations.
 
 ---
@@ -74,7 +73,7 @@ args:
 - [35_batched_transpose](../35_batched_transpose/README.md): Batched transpose with tiles
 - [06_permute](../06_permute/README.md): Generic permutation with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)
