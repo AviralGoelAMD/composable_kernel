@@ -8,7 +8,7 @@ The following acronyms are used in the Composable Kernel codebase:
 | BF16    | Brain Floating Point 16 | 1 Signed bit, 8 Exponent bits, 7 Mantissa bits |
 | BF8     | 8-bit Brain Floating Point | 1 Signed bit, 3 Exponent bits, 4 Mantissa bits |
 | DLA     | Deep Learning Accelerator | Specialized hardware for deep learning workloads |
-| DRAM    | Dynamic Random-Access Memory | Main memory (global memory on GPU) |
+| DRAM    | Dynamic Random-Access Memory | Main memory. Global memory on GPU |
 | E2E     | End-to-End | Complete pipeline or process from input to output |
 | ELU     | Exponential Linear Unit | Activation function: $x$ if $x>0$ else $\alpha(e^x-1)$ |
 | FMHA    | Fused Multi-Head Attention | Efficient transformer attention kernel, fusing softmax, masking, and matmul |
