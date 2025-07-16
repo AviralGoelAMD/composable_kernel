@@ -25,7 +25,6 @@ where $f$ is a fused elementwise function (e.g., add, multiply, activation).
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of $E$.
-- **Tile Engine**: Handles loading tiles, performing GEMM, and applying fused elementwise ops.
 - **Pipeline**: Modular, supports different memory/computation pipelines and multi-D fusion.
 
 ---
@@ -90,7 +89,7 @@ args:
 - [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
 - [17_grouped_gemm](../17_grouped_gemm/README.md): Grouped GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

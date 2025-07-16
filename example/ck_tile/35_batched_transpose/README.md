@@ -20,7 +20,6 @@ $$
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of the input tensor for a given batch.
-- **Tile Engine**: Loads tiles, computes permuted indices, and writes results.
 - **Pipeline**: Modular, can be extended for vectorized or fused operations.
 
 ---
@@ -79,7 +78,7 @@ args:
 - [03_gemm](../03_gemm/README.md): GEMM with tiles
 - [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)
