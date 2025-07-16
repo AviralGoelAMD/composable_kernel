@@ -23,7 +23,6 @@ $$
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of $C$ for a given batch.
-- **Tile Engine**: Handles loading tiles, performing GEMM in registers, and storing results.
 - **Pipeline**: Modular, supports different memory/computation pipelines and flat/padded layouts.
 
 ---
@@ -86,7 +85,7 @@ args:
 - [03_gemm](../03_gemm/README.md): Single GEMM with tiles
 - [17_grouped_gemm](../17_grouped_gemm/README.md): Grouped GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

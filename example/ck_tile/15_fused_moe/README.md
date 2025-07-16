@@ -130,7 +130,7 @@ summary of the key design of this fused-moe operator:
 - [09_topk_softmax](../09_topk_softmax/README.md): TopK-Softmax for MoE gating
 - [03_gemm](../03_gemm/README.md): GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)
