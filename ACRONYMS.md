@@ -1,6 +1,6 @@
 # Acronyms in Composable Kernel
 
-This file lists technical acronyms found throughout the Composable Kernel codebase.
+The following acronyms are used in the Composable Kernel codebase:
 
 | Acronym | Expansion | Explanation |
 |---------|-----------|-------------|
