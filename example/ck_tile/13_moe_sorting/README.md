@@ -23,7 +23,6 @@ This enables efficient batched GEMM per expert.
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile (block of tokens or experts).
-- **Tile Engine**: Loads token assignments, performs sorting, and writes expert-wise outputs.
 - **Pipeline**: Modular, can be extended for further fusion or dispatch.
 
 ---
@@ -80,7 +79,7 @@ args:
 - [15_fused_moe](../15_fused_moe/README.md): Fused MoE block
 - [03_gemm](../03_gemm/README.md): GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

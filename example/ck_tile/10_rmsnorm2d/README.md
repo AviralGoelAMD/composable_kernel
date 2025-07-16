@@ -22,7 +22,6 @@ where $\gamma$ is a learnable scale parameter.
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of the input matrix.
-- **Tile Engine**: Loads tiles, computes mean square, normalizes, and writes results.
 - **Pipeline**: Modular, can be extended for fused operations.
 
 ---
@@ -65,7 +64,7 @@ args:
 - [12_smoothquant](../12_smoothquant/README.md): SmoothQuant with tiles
 - [05_reduce](../05_reduce/README.md): Reductions with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see  [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

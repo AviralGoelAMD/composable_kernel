@@ -19,7 +19,6 @@ Given a matrix $X$ of shape $[\text{tokens}, \text{experts}]$:
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile (block of rows).
-- **Tile Engine**: Loads tiles, computes softmax, finds top-k, and writes results.
 - **Pipeline**: Modular, can be extended for fused operations.
 
 ---
@@ -67,7 +66,7 @@ args:
 - [05_reduce](../05_reduce/README.md): Reductions with tiles
 - [03_gemm](../03_gemm/README.md): GEMM with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

@@ -19,7 +19,6 @@ where $A$ is $[M, K]$, $B$ is $[K, N]$, and $C$ is $[M, N]$.
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of $C$.
-- **Tile Engine**: Handles loading tiles from global memory, performing GEMM in registers, and storing results.
 - **Pipeline**: Modular design allows swapping different memory/computation pipelines (e.g., basic, memory-bound).
 
 ---
@@ -80,7 +79,7 @@ args:
 - [02_layernorm2d](../02_layernorm2d/README.md): Tile-programming LayerNorm
 - [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
 
-For tile engine and distribution, see `include/ck_tile/tile_engine/` and `include/ck_tile/tile_program/tile_distribution/`.
+For distribution, see `include/ck_tile/tile_program/tile_distribution/`.
 
 ---
 [Back to CK Tile Examples](../README.md)

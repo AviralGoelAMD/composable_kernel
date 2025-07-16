@@ -21,7 +21,6 @@ Given input $X$ and per-channel scale $S$:
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile (row or block).
-- **Tile Engine**: Loads tiles, applies scaling, performs quantization, and writes results.
 - **Pipeline**: Modular, can be extended for further fusion.
 
 ---
@@ -56,7 +55,7 @@ Example:
 - [10_rmsnorm2d](../10_rmsnorm2d/README.md): RMSNorm2D with tiles
 - [02_layernorm2d](../02_layernorm2d/README.md): LayerNorm2D with tiles
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)

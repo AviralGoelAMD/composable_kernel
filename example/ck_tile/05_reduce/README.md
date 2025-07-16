@@ -18,7 +18,6 @@ Given a tensor $X$ and a reduction axis, compute:
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile (block) of the input tensor.
-- **Tile Engine**: Loads tiles, performs parallel reduction, and writes results.
 - **Pipeline**: Modular, can be extended for fused reductions or post-processing.
 
 ---
@@ -48,7 +47,7 @@ make tile_example_reduce -j
 - [04_img2col](../04_img2col/README.md): im2col transformation
 - [06_permute](../06_permute/README.md): Permutation with tiles
 
-For tile engine and distribution, see `include/ck_tile/tile_engine/` and `include/ck_tile/tile_program/tile_distribution/`.
+For distribution, see `include/ck_tile/tile_program/tile_distribution/`.
 
 ---
 [Back to CK Tile Examples](../README.md)

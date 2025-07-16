@@ -15,7 +15,6 @@ Given an input image tensor $X$ and convolution kernel size, im2col rearranges s
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile (block of patches).
-- **Tile Engine**: Handles loading image tiles, extracting patches, and writing columns.
 - **Pipeline**: Modular, can be extended for fused operations (e.g., quantization, activation).
 
 ---
@@ -45,7 +44,7 @@ make tile_example_img2col -j
 - [05_reduce](../05_reduce/README.md): Reductions with tiles
 - [06_permute](../06_permute/README.md): Permutation with tiles
 
-For tile engine and distribution, see `include/ck_tile/tile_engine/` and `include/ck_tile/tile_program/tile_distribution/`.
+For distribution, see `include/ck_tile/tile_program/tile_distribution/`.
 
 ---
 [Back to CK Tile Examples](../README.md)

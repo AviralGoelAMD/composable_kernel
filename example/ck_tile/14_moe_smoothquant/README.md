@@ -69,7 +69,7 @@ make tile_example_moe_smoothquant -j
 - [13_moe_sorting](../13_moe_sorting/README.md): MoE sorting for expert dispatch
 - [12_smoothquant](../12_smoothquant/README.md): Standard SmoothQuant
 
-For tile engine and distribution, see [`include/ck_tile/tile_engine/`](../../../include/ck_tile/tile_engine/) and [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
 
 ---
 [Back to CK Tile Examples](../README.md)
