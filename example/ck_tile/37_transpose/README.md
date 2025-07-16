@@ -20,7 +20,6 @@ $$
 ## Tile Programming Model
 
 - **Tiles**: Each thread block processes a tile of the input tensor for a given batch.
-- **Tile Engine**: Loads tiles, computes permuted indices, and writes results using blockwise memory access.
 - **Policy**: [`transpose_policy.hpp`](transpose_policy.hpp) defines tile/block size and memory access patterns for optimal performance.
 
 ---
