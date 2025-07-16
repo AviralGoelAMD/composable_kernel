@@ -1,12 +1,12 @@
 # CK Tile Example Suite
 
-This directory contains a comprehensive suite of examples demonstrating the CK Tile programming model for high-performance GPU kernels. Each example illustrates a key deep learning or HPC operation, implemented using tile-based parallelism, modular pipelines, and the CK Tile engine.
+This directory contains a comprehensive suite of examples demonstrating the CK Tile programming model for high-performance GPU kernels. Each example illustrates a key deep learning or HPC operation, implemented using tile-based parallelism, modular pipelines, and data movement policy.
 
 ---
 
 ## What is CK Tile?
 
-CK Tile is a composable GPU programming framework that expresses kernels as a composition of "tiles"—rectangular blocks of computation and data movement. The tile engine orchestrates data movement (global <-> LDS <-> registers), computation, and synchronization, enabling high efficiency and flexibility.
+CK Tile is a composable GPU programming API that expresses kernels as a composition of "tiles"—rectangular blocks of computation and data movement. The pipeline & policy orchestrates data movement (global <-> LDS <-> registers), computation, and synchronization, enabling high efficiency and flexibility.
 
 ---
 
@@ -39,7 +39,6 @@ CK Tile is a composable GPU programming framework that expresses kernels as a co
 
 ## Technical Highlights
 
-- **Tile Engine**: See [`include/ck_tile/tile_engine/`](../../include/ck_tile/tile_engine/) for core logic.
 - **Tile Distribution**: See [`include/ck_tile/tile_program/tile_distribution/`](../../include/ck_tile/tile_program/tile_distribution/) for mapping tiles to thread blocks.
 - **Block Tile Pipelines**: See [`include/ck_tile/tile_program/block_tile_pipeline/`](../../include/ck_tile/tile_program/block_tile_pipeline/) for memory/computation pipelines.
 - **Policies and Utilities**: Many examples use custom policies for tile/block size and memory access.
@@ -68,7 +67,6 @@ Each example produces its own executable in `build/bin/`.
 ## References
 
 - [CK Tile Programming API Documentation](https://github.com/ROCm/composable_kernel/tree/develop/include/ck_tile)
-- [Tile Engine Source Code](https://github.com/ROCm/composable_kernel/tree/develop/include/ck_tile/tile_engine)
 - [Block Tile Pipeline Source](https://github.com/ROCm/composable_kernel/tree/develop/include/ck_tile/tile_program/block_tile_pipeline)
 - [Tile Distribution Source](https://github.com/ROCm/composable_kernel/tree/develop/include/ck_tile/tile_program/tile_distribution)
 
