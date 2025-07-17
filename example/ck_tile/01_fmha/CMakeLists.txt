@@ -86,9 +86,11 @@ set(EXAMPLE_FMHA_COMPILE_OPTIONS)
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -Wno-float-equal)
 
-if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32)
-  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS --offload-compress)
-endif()
+# TODO: compression significantly increases loading time causing very long testing (because each
+# test case loads the example binary). Enable after converting test scripts to a proper test suite.
+# if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32)
+#   list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS --offload-compress)
+# endif()
 
 # TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
 # size so it cannot launch kernels for MFMA and WMMA at the same time
