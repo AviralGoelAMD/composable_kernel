@@ -648,6 +648,12 @@ def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
     else:
         return None
 
+def get_fmha_fwd_tile_dict_from_dtype(arch : str, dtype : str) -> Optional[dict]:
+    if arch.startswith('gfx12'):
+        return get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype)
+    else:
+        return get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype)
+
 def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     # Possible values of F_bn1: 8, 16, 32
     if dtype == 'fp16' or dtype == 'bf16':
@@ -668,7 +674,7 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
     else:
         return None
 
-def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> List[FmhaFwdSplitKVKernel]:
+def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl) -> List[FmhaFwdSplitKVKernel]:
     Pipeline = FmhaFwdSplitKVPipeline
     Kernel = FmhaFwdSplitKVKernel
 
@@ -738,15 +744,16 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
             assert False
         return pipelines
 
+    def get_pipelines(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
+        if arch.startswith('gfx12'):
+            return get_pipelines_gfx12(dtype, hdim)
+        else:
+            return get_pipelines_gfx9(dtype, hdim)
+
     gen = list()
 
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-    get_fmha_fwd_tile_dict_from_dtype = get_fmha_fwd_tile_dict_from_dtype_gfx12 if use_gfx12 else get_fmha_fwd_tile_dict_from_dtype_gfx9
-    get_pipelines = get_pipelines_gfx12 if use_gfx12 else get_pipelines_gfx9
-
     for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
+        d = get_fmha_fwd_tile_dict_from_dtype(arch, dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -798,7 +805,7 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> 
 
     return gen
 
-def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaFwdSplitKVCombineKernel]:
+def get_fwd_splitkv_combine_blobs(arch : str, kernel_filter : Optional[str], receipt) -> List[FmhaFwdSplitKVCombineKernel]:
     Pipeline = FmhaFwdSplitKVCombinePipeline
     Kernel = FmhaFwdSplitKVCombineKernel
 
@@ -867,15 +874,15 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
     assert optdim_list == [-1]
 
-    combine_kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
+    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt)
     for kernel in combine_kernels:
         write_single_kernel(kernel, output_dir)
-    kernels = get_fwd_splitkv_blobs(filter_list[1], receipt, mask_impl)
+    kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
 
@@ -918,16 +925,16 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask
         )
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
     assert optdim_list == [-1]
 
     with file_path.open('a') as f:
-        kernels = get_fwd_splitkv_combine_blobs(filter_list[0], receipt)
+        kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_fwd_splitkv_blobs(filter_list[1], receipt, mask_impl)
+        kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_SPLITKV_API_FILENAME) + "\n")

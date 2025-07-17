@@ -17,8 +17,31 @@ if(NOT "fwd" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_ENABLE_APIS "fwd")
 endif()
 
+set(EXAMPLE_FMHA_COMPILE_OPTIONS)
+set(EXAMPLE_FMHA_ARCH)
+
+# TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
+# size so it cannot launch kernels for MFMA and WMMA at the same time
+# Create separate binaries?
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use WMMA")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
+  set(EXAMPLE_FMHA_ARCH "gfx12")
+elseif(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+  message(STATUS "FMHA examples use MFMA")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+  set(EXAMPLE_FMHA_ARCH "gfx9")
+else()
+  message(WARNING "FMHA examples cannot use both MFMA and WMMA, only MFMA is forced to use")
+  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
+  set(EXAMPLE_FMHA_ARCH "gfx9")
+endif()
+
 set(FMHA_GENERATE_FWD_PARAMS)
 set(FMHA_GENERATE_BWD_PARAMS --receipt 3)
+
+set(FMHA_GENERATE_FWD_PARAMS --arch=${EXAMPLE_FMHA_ARCH} ${FMHA_GENERATE_FWD_PARAMS})
+set(FMHA_GENERATE_BWD_PARAMS --arch=${EXAMPLE_FMHA_ARCH} ${FMHA_GENERATE_BWD_PARAMS})
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 # generate a list of kernels, but not actually emit files at config sta
@@ -81,7 +104,6 @@ if(NOT DEFINED FMHA_FWD_FAST_EXP2)
   set(FMHA_FWD_FAST_EXP2 true)
 endif()
 
-set(EXAMPLE_FMHA_COMPILE_OPTIONS)
 
 # Allow comparing floating points directly in order to check sentinel values
 list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -Wno-float-equal)
@@ -91,20 +113,6 @@ list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -Wno-float-equal)
 # if(NOT DISABLE_OFFLOAD_COMPRESS AND NOT WIN32)
 #   list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS --offload-compress)
 # endif()
-
-# TODO: Can MFMA and WMMA implementations coexist in one binary? Some host code DEPENDS on warp
-# size so it cannot launch kernels for MFMA and WMMA at the same time
-# Create separate binaries?
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA examples use WMMA")
-  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=1 -DCK_TILE_USE_MFMA=0)
-elseif(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx12" AND SUPPORTED_GPU_TARGETS MATCHES "gfx9")
-  message(STATUS "FMHA examples use MFMA")
-  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-else()
-  message(WARNING "FMHA examples cannot use both MFMA and WMMA, only MFMA is forced to use")
-  list(APPEND EXAMPLE_FMHA_COMPILE_OPTIONS -DCK_TILE_USE_WMMA=0 -DCK_TILE_USE_MFMA=1)
-endif()
 
 set(EXAMPLE_FMHA_FWD_COMPILE_OPTIONS ${EXAMPLE_FMHA_COMPILE_OPTIONS})
 set(EXAMPLE_FMHA_BWD_COMPILE_OPTIONS ${EXAMPLE_FMHA_COMPILE_OPTIONS})

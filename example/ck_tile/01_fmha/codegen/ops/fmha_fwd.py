@@ -474,7 +474,13 @@ def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
     else:
         return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+def get_fmha_fwd_tile_dict_from_dtype(arch : str, dtype : str) -> Optional[dict]:
+    if arch.startswith('gfx12'):
+        return get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype)
+    else:
+        return get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype)
+
+def get_fwd_blobs(arch : str, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines_gfx9(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
@@ -541,18 +547,19 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
             assert False
         return pipelines
 
+    def get_pipelines(dtype, hdim, hdim_v) -> List[FmhaFwdPipeline]:
+        if arch.startswith('gfx12'):
+            return get_pipelines_gfx12(dtype, hdim, hdim_v)
+        else:
+            return get_pipelines_gfx9(dtype, hdim, hdim_v)
+
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-
     for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype)
+        d = get_fmha_fwd_tile_dict_from_dtype(arch, dtype)
         if d == None:
             continue
-        #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
-        get_pipelines = get_pipelines_gfx12 if use_gfx12 else get_pipelines_gfx9
         for ((hdim, hdim_v), tile), mode in itertools.product(d.items(), MODE_MAP.keys()):
             for pipeline in get_pipelines(dtype, hdim, hdim_v):
                 if mode == "group":
@@ -632,15 +639,15 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+def write_blobs(arch : str, output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+    api_pool, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+        _, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")

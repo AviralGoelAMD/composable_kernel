@@ -490,17 +490,18 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype : str) -> Optiona
     else:
         return None
 
-def get_bwd_dq_dk_dv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdDQDKDVKernel]]:
-    # TODO: we don't support tuning yet, so pick up one value for pad
-    #       support this in future
+def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(arch : str, dtype : str) -> Optional[dict]:
+    if arch.startswith('gfx12'):
+        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype)
+    else:
+        return get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
+
+def get_bwd_dq_dk_dv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaBwdApiPool, List[FmhaBwdDQDKDVKernel]]:
     gen = list()
     api_pool = FmhaBwdApiPool(mask_impl)
 
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(arch, dtype)
         if d == None:
             continue
         for hdim_str, mode, mask, bias, dbias, dropout, spad, skpad, dpad, dvpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"], ["t", "f"]):
@@ -671,7 +672,7 @@ class FmhaBwdOGradDotOKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdOGradDotOKernel]:
+def get_bwd_dot_do_o_blobs(arch : str, kernel_filter : Optional[str], receipt) -> List[FmhaBwdOGradDotOKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -679,12 +680,8 @@ def get_bwd_dot_do_o_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaB
 
     gen = list()
 
-
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(arch, dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dvpad in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -832,7 +829,7 @@ class FmhaBwdConvertQGradKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[FmhaBwdConvertQGradKernel]:
+def get_bwd_convert_dq_blobs(arch : str, kernel_filter : Optional[str], receipt) -> List[FmhaBwdConvertQGradKernel]:
     # TODO: we don't support tuning yet, so pick up one value for pad/occupancy
     #       support this in future
     def get_occupancy(dtype, hdim):
@@ -840,12 +837,8 @@ def get_bwd_convert_dq_blobs(kernel_filter : Optional[str], receipt) -> List[Fmh
 
     gen = list()
 
-
-    # TODO: Pass architecture as an argument?
-    use_gfx12 = True
-
     for dtype in BWD_DTYPE_MAP.keys():
-        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx12(dtype) if use_gfx12 else get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype_gfx9(dtype)
+        d = get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(arch, dtype)
         if d == None:
             continue
         for hdim_str, mode, spad, dpad, deterministic in itertools.product(d.keys(), MODE_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
@@ -891,37 +884,37 @@ def write_single_bwd_convert_dq_kernel(kernel: FmhaBwdConvertQGradKernel, autoge
 def write_bwd_api(api_pool : FmhaBwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_BWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
     # TODO
     assert optdim_list == [-1]
 
-    kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
+    kernels = get_bwd_dot_do_o_blobs(arch, filter_list[0], receipt)
     for kernel in kernels:
         write_single_bwd_dot_do_o_kernel(kernel, output_dir)
-    kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
+    kernels = get_bwd_convert_dq_blobs(arch, filter_list[1], receipt)
     for kernel in kernels:
         write_single_bwd_convert_dq_kernel(kernel, output_dir)
-    api_pool, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
+    api_pool, kernels = get_bwd_dq_dk_dv_blobs(arch, filter_list[2], receipt, mask_impl)
     for kernel in kernels:
         write_single_bwd_dq_dk_dv_kernel(kernel, output_dir)
     write_bwd_api(api_pool, output_dir)
 
-def list_blobs(file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch : str, file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (3 - len(filter_list)))
     # TODO
     assert optdim_list == [-1]
 
     with file_path.open('a') as f:
-        kernels = get_bwd_dot_do_o_blobs(filter_list[0], receipt)
+        kernels = get_bwd_dot_do_o_blobs(arch, filter_list[0], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_bwd_convert_dq_blobs(filter_list[1], receipt)
+        kernels = get_bwd_convert_dq_blobs(arch, filter_list[1], receipt)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        _, kernels = get_bwd_dq_dk_dv_blobs(filter_list[2], receipt, mask_impl)
+        _, kernels = get_bwd_dq_dk_dv_blobs(arch, filter_list[2], receipt, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_BWD_API_FILENAME) + "\n")
