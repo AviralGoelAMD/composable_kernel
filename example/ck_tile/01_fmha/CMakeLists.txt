@@ -1,7 +1,7 @@
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv")
+set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
-    "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
+  "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(FMHA_FWD_ENABLE_APIS STREQUAL "all")
   set(FMHA_FWD_ENABLE_APIS ${FMHA_FWD_KNOWN_APIS})
 endif()
@@ -37,17 +37,37 @@ else()
   set(EXAMPLE_FMHA_ARCH "gfx9")
 endif()
 
+# --filter fmha_fwd...
 set(FMHA_GENERATE_FWD_PARAMS)
+# --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 set(FMHA_GENERATE_BWD_PARAMS --receipt 3)
 
 set(FMHA_GENERATE_FWD_PARAMS --arch=${EXAMPLE_FMHA_ARCH} ${FMHA_GENERATE_FWD_PARAMS})
 set(FMHA_GENERATE_BWD_PARAMS --arch=${EXAMPLE_FMHA_ARCH} ${FMHA_GENERATE_BWD_PARAMS})
 
+file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  ${CMAKE_CURRENT_LIST_DIR}/codegen/*.py
+)
+# re-run execute_process `generate.py --list_blobs` if any of the codegen scripts change
+set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}")
+
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
+set(FMHA_FWD_CODE_GEN_COMMON_ARGS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api ${FMHA_FWD_APIS}
+  ${FMHA_GENERATE_FWD_PARAMS}
+)
+set(FMHA_BWD_CODE_GEN_COMMON_ARGS
+  ${CMAKE_CURRENT_LIST_DIR}/generate.py
+  --api bwd
+  ${FMHA_GENERATE_BWD_PARAMS}
+)
+
 # generate a list of kernels, but not actually emit files at config sta
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt ${FMHA_GENERATE_FWD_PARAMS}
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
@@ -55,8 +75,8 @@ if(ret AND NOT ret EQUAL 0)
 endif()
 
 execute_process(
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt ${FMHA_GENERATE_BWD_PARAMS}
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
+  --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt
   RESULT_VARIABLE ret
 )
 if(ret AND NOT ret EQUAL 0)
@@ -70,15 +90,17 @@ file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 
 add_custom_command(
   OUTPUT ${FMHA_FWD_GEN_BLOBS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api ${FMHA_FWD_APIS} --output_dir ${CMAKE_CURRENT_BINARY_DIR} ${FMHA_GENERATE_FWD_PARAMS}
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${CODE_GEN_SCRIPTS}
   COMMENT "Generate CK Tile FMHA FWD kernels"
 )
 
 add_custom_command(
   OUTPUT ${FMHA_BWD_GEN_BLOBS}
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --api bwd --output_dir ${CMAKE_CURRENT_BINARY_DIR} ${FMHA_GENERATE_BWD_PARAMS}
+  COMMAND ${Python3_EXECUTABLE} ${FMHA_BWD_CODE_GEN_COMMON_ARGS}
+  --output_dir ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS ${CODE_GEN_SCRIPTS}
   COMMENT "Generate CK Tile FMHA BWD kernels"
 )
 
@@ -138,6 +160,13 @@ if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
+endif()
+
+# conditionally enable call to the pagedkv_prefill API in fmha_fwd example
+if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
+else()
+  list(APPEND EXAMPLE_FMHA_FWD_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
 # conditionally specify the use of OCP_FP8
