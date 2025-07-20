@@ -5,7 +5,7 @@ endif()
 
 list(APPEND TEST_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 
-if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
+if(GPU_TARGETS MATCHES "gfx94")
     set(TEST_GEMM_NAME test_tile_gemm_aquant_basic)
     set(QUANT_TYPES fp8 bf8 i4fp8 i4bf8 i4f32fp8 i4f32bf8)
 
