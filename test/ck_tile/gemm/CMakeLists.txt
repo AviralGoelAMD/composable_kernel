@@ -1,3 +1,5 @@
+include(GpuTargetsMatchAllowedList)
+
 # Currently ck_tile_gemm is only built on gfx94/gfx95
 set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
@@ -12,7 +14,11 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
     -enable-noalias-to-md-conversion=0
 )
 
-if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
+ContainsOnlySpecifiedGpuTargets("${SUPPORTED_GPU_TARGETS}" "gfx942" is_only_gfx942)
+ContainsOnlySpecifiedGpuTargets("${SUPPORTED_GPU_TARGETS}" "gfx950" is_only_gfx950) 
+ContainsOnlySpecifiedGpuTargets("${SUPPORTED_GPU_TARGETS}" "gfx90a" is_only_gfx90a) 
+
+if(is_only_gfx942 OR is_only_gfx950)
     add_gtest_executable(test_ck_tile_gemm_pipeline_mem test_gemm_pipeline_mem.cpp)
     add_gtest_executable(test_ck_tile_gemm_pipeline_compv3 test_gemm_pipeline_compv3.cpp)
     add_gtest_executable(test_ck_tile_gemm_pipeline_compv4 test_gemm_pipeline_compv4.cpp)
@@ -34,7 +40,7 @@ else()
     message(DEBUG "Skipping ck_tile_gemm tests for current target")
 endif()
 
-if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95" OR GPU_TARGETS MATCHES "gfx90a")
+if(is_only_gfx942 OR is_only_gfx950 OR is_only_gfx90a)
     add_gtest_executable(test_ck_tile_gemm_pipeline_persistent test_gemm_pipeline_persistent.cpp)
     target_compile_options(test_ck_tile_gemm_pipeline_persistent PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 

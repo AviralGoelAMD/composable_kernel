@@ -1,3 +1,5 @@
+include(GpuTargetsMatchAllowedList)
+
 set(TEST_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
   list(APPEND TEST_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
@@ -5,7 +7,10 @@ endif()
 
 list(APPEND TEST_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 
-if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
+ContainsOnlySpecifiedGpuTargets("${SUPPORTED_GPU_TARGETS}" "gfx942" is_only_gfx942)
+ContainsOnlySpecifiedGpuTargets("${SUPPORTED_GPU_TARGETS}" "gfx950" is_only_gfx950) 
+
+if(is_only_gfx942 OR is_only_gfx950)
     set(TEST_GEMM_NAME test_tile_gemm_aquant_basic)
     set(QUANT_TYPES fp8 bf8 i4fp8 i4bf8 i4f32fp8 i4f32bf8)
 

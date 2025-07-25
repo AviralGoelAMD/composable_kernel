@@ -4,6 +4,15 @@ include_directories(BEFORE
 )
 
 include(gtest)
+include(GpuTargetsMatchAllowedList)
+
+ContainsOnlyOneTarget("${SUPPORTED_GPU_TARGETS}" is_specified_one_target)
+if (NOT is_specified_one_target) 
+    message(FATAL_ERROR "It is required to specify a single GPU target explicitly, "
+        "as certain unit tests generate kernels based on the designated GPU architecture. "
+        "The specification of multiple GPU targets may result in incompatibility between "
+        "host code and device code implementations.")
+endif()
 
 add_custom_target(tests)
 
