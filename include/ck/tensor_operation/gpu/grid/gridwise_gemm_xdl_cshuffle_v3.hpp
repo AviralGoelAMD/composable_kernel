@@ -99,6 +99,142 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif // end of if (defined(__gfx9__))
 }
 
+#if 0
+    template<typename AElementwiseOperation, typename BElementwiseOperation, typename CElementwiseOperation>
+    struct GridwiseGemm_xdl_cshuffle_v3_Problem
+    {
+        __host__ GridwiseGemm_xdl_cshuffle_v3_Problem(index_t M_,
+                         index_t N_,
+                         index_t K_,
+                         index_t StrideA_,
+                         index_t StrideB_,
+                         index_t StrideC_,
+                         index_t KBatch_,
+                         AElementwiseOperation a_element_op,
+                         BElementwiseOperation b_element_op,
+                         CElementwiseOperation c_element_op)
+            : M{M_},
+              N{N_},
+              K{K_},
+              StrideA{StrideA_},
+              StrideB{StrideB_},
+              StrideC{StrideC_},
+              KBatch{KBatch_},
+              #if 0
+              MPadded{CalculateMPadded(M_)},
+              NPadded{CalculateNPadded(N_)},
+              KRead{CalculateKRead(K_, KBatch_)},
+              KPadded{CalculateKPadded(K_, KBatch_)},
+              AK0{CalculateAK0Padded(K_, KBatch_)},
+              BK0{CalculateBK0Padded(K_, KBatch_)},
+              MBlock{CalculateMBlock(M_)},
+              NBlock{CalculateNBlock(N_)},
+              #endif
+              MPadded{M_},
+              NPadded{N_},
+              KRead{K_},
+              KPadded{K_},
+              AK0{K_},
+              BK0{K_},
+              MBlock{M_},
+              NBlock{N_},  
+              a_element_op_{a_element_op},
+              b_element_op_{b_element_op},
+              c_element_op_{c_element_op}
+        {
+        }
+
+        __host__ void Print() const
+        {
+            std::cout << "problem {"
+                      << "M:" << M << ", "
+                      << "N:" << N << ", "
+                      << "K:" << K << ", "
+                      << "SA:" << StrideA << ", "
+                      << "SB:" << StrideB << ", "
+                      << "SC:" << StrideC << ", "
+                      << "MP:" << MPadded << ", "
+                      << "NP:" << NPadded << ", "
+                      << "KRead:" << KRead << ", "
+                      << "KP:" << KPadded << ", "
+                      << "AK0:" << AK0 << ", "
+                      << "BK0:" << BK0 << ", "
+                      << "MBlock: " << MBlock << ", "
+                      << "NBlock: " << NBlock << "}" << std::endl;
+        }
+
+        index_t M;
+        index_t N;
+        index_t K;
+        index_t StrideA;
+        index_t StrideB;
+        index_t StrideC;
+        index_t KBatch;
+        index_t MPadded;
+        index_t NPadded;
+        index_t KRead;
+        index_t KPadded;
+        index_t AK0;
+        index_t BK0;
+        index_t MBlock;
+        index_t NBlock;
+        AElementwiseOperation a_element_op_;
+        BElementwiseOperation b_element_op_;
+        CElementwiseOperation c_element_op_;
+    };
+
+    // Argument
+    template<typename ADataType, typename BDataType, typename CDataType, typename AElementwiseOperation, typename BElementwiseOperation, typename CElementwiseOperation>
+    struct GridwiseGemm_xdl_cshuffle_v3_Argument : public tensor_operation::device::BaseArgument, public GridwiseGemm_xdl_cshuffle_v3_Problem<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>
+    {
+        using Problem = GridwiseGemm_xdl_cshuffle_v3_Problem<AElementwiseOperation, BElementwiseOperation, CElementwiseOperation>;
+        __host__ GridwiseGemm_xdl_cshuffle_v3_Argument(const ADataType* p_a_grid_,
+                          const BDataType* p_b_grid_,
+                          CDataType* p_c_grid_,
+                          index_t M_,
+                          index_t N_,
+                          index_t K_,
+                          index_t StrideA_,
+                          index_t StrideB_,
+                          index_t StrideC_,
+                          index_t k_batch_,
+                          bool is_reduce_                    = false,
+                          AElementwiseOperation a_element_op = AElementwiseOperation{},
+                          BElementwiseOperation b_element_op = BElementwiseOperation{},
+                          CElementwiseOperation c_element_op = CElementwiseOperation{})
+            : Problem{M_,
+                      N_,
+                      K_,
+                      StrideA_,
+                      StrideB_,
+                      StrideC_,
+                      k_batch_,
+                      a_element_op,
+                      b_element_op,
+                      c_element_op},
+              p_a_grid{p_a_grid_},
+              p_b_grid{p_b_grid_},
+              p_c_grid{p_c_grid_},
+              is_reduce(is_reduce_)
+        {
+        }
+
+        __host__ __device__ inline bool IsReduceAdd() const
+        {
+            return (Problem::KBatch > 1) && is_reduce;
+        }
+
+        __host__ __device__ inline bool IsAtomicAdd() const
+        {
+            return (Problem::KBatch > 1) && (!is_reduce);
+        }
+
+        const ADataType* p_a_grid;
+        const BDataType* p_b_grid;
+        CDataType* p_c_grid;
+        bool is_reduce;
+    };
+#endif
 /// @brief \"Universal\" GEMM kernel with SplitK support.
 ///
 /// @par Overview
@@ -291,7 +427,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
+    //using Argument = GridwiseGemm_xdl_cshuffle_v3_Argument<ADataType, BDataType, CDataType,  AElementwiseOperation,      BElementwiseOperation,  CElementwiseOperation>;
+    //using Problem = GridwiseGemm_xdl_cshuffle_v3_Problem<AElementwiseOperation, BElementwiseOperation,  CElementwiseOperation>;
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
             return 2;
@@ -1155,6 +1292,34 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          c_block_size * sizeof(CShuffleDataType));
     }
 
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
+        {
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
+        if constexpr(MWaves > 0 && NWaves > 0)
+        {
+            constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
+            if constexpr(WaveSize == get_warp_size())
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+        }
+        else
+        {
+            return false;
+        }
+    }
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
