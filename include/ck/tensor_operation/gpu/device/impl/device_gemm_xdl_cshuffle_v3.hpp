@@ -177,7 +177,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        CElementwiseOperation>
 {
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3<
+    static constexpr auto NXdlPerWave64 = NXdlPerWave;
+    static constexpr auto NXdlPerWave32 = NXdlPerWave/2;
+    using GridwiseGemm64 = GridwiseGemm_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         CLayout,
@@ -199,7 +201,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave64,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -227,7 +229,58 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         PermuteA,
         PermuteB>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using GridwiseGemm32 = GridwiseGemm_xdl_cshuffle_v3<
+        ALayout,
+        BLayout,
+        CLayout,
+        ADataType,
+        BDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave32,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        CShuffleNXdlPerWavePerShuffle,
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ComputeTypeA,
+        ComputeTypeB,
+        PermuteA,
+        PermuteB>;
+
+    using Argument = typename GridwiseGemm64::Argument;
+    static_assert(std::is_same<typename GridwiseGemm64::Argument, typename GridwiseGemm32::Argument>::value);
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
@@ -254,12 +307,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     ///
     struct Invoker : public BaseInvoker
     {
-        /// @brief  This function issues GPU kernel execution.
-        /// @param arg           The GPU kernel arguments.
-        /// @param stream_config The HIP stream configuration helper structure.
-        /// @return              The kernel's average execution time (if time measurement is
-        ///                      enabled).
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+
+
+        template<typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -732,7 +783,23 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
             return ave_time;
         }
-
+        
+        /// @brief  This function issues GPU kernel execution.
+        /// @param arg           The GPU kernel arguments.
+        /// @param stream_config The HIP stream configuration helper structure.
+        /// @return              The kernel's average execution time (if time measurement is
+        ///                      enabled).
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if (get_warp_size() == 64)
+            {
+                RunImp<GridwiseGemm>(arg, stream_config);
+            }
+            else
+            {
+                RunImp<GridwiseGemm32>(arg, stream_config);
+            }
+        }
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -753,6 +820,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             return false;
         }
+        
+        if (is_gfx11_supported() && arg.KBatch > 1)
+        {
+            return false;
+        }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
@@ -767,7 +839,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if (get_warp_size() == 64)
+        {
+            return GridwiseGemm64::CheckValidity(arg);
+        }
+        else
+        {
+            return GridwiseGemm32::CheckValidity(arg);
+        }
     }
 
     // polymorphic
@@ -870,11 +949,13 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", ";
+            #if 0
             << "BlkGemmPipelinePrefetchStages: "
             << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
             << "Kpack: "
             << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
+            #endif
         // clang-format on
 
         return str.str();

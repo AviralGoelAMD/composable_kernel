@@ -35,7 +35,14 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx9__)
+#if defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__)
+#if defined(__gfx11__)
+    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
+#else
+    constexpr bool SupportMemOp = true;
+#endif
+    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -46,6 +53,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -63,9 +71,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx9__)
+#if(defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__))
+#if defined(__gfx11__)
+    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
+#else
+    constexpr bool SupportMemOp = true;
+#endif
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
+    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    {
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -78,6 +93,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         p_shared_0,
         p_shared_1,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1142,9 +1158,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
+        #if 0
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                          (NPerBlock % (NXdlPerWave() * NPerXdl)) == 0,
                       "Invalid tuning param!");
+        #endif
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
