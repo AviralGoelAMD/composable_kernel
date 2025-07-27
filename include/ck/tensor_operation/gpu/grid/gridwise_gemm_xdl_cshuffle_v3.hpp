@@ -35,7 +35,14 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__)
+#if defined(__gfx11__)
+    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
+#else
+    constexpr bool SupportMemOp = true;
+#endif
+    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    {
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
@@ -46,6 +53,7 @@ __global__ void
         karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
         p_shared,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -63,9 +71,16 @@ __global__ void
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if(defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__))
+#if defined(__gfx11__)
+    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
+#else
+    constexpr bool SupportMemOp = true;
+#endif
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
+    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    {
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
     __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -78,6 +93,7 @@ __global__ void
         p_shared_0,
         p_shared_1,
         karg);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -123,7 +139,7 @@ __global__ void
 /// @tparam MPerXdl     M size of matrix-fused-multiply-add instruction.
 /// @tparam NPerXdl     N size of matrix-fused-multiply-add instruction.
 /// @tparam MXdlPerWave The number of iterations in the M dimension over output tile per wavefront.
-/// @tparam NXdlPerWave The number of iterations in the N dimension over output tile per wavefront.
+/// @tparam NXdlPerWave__ The number of iterations in the N dimension over output tile per wavefront.
 /// @tparam ABlockTransferThreadClusterLengths_AK0_M_AK1 Spatial thread distribution over the input
 ///                                                      data. Can be interpreted as the answer
 ///                                                      to the question, "How many threads can be
@@ -209,7 +225,7 @@ template <typename ALayout,
           index_t MPerXdl,
           index_t NPerXdl,
           index_t MXdlPerWave,
-          index_t NXdlPerWave,
+          index_t NXdlPerWave__,
           typename ABlockTransferThreadClusterLengths_AK0_M_AK1,
           typename ABlockTransferThreadClusterArrangeOrder,
           typename ABlockTransferSrcAccessOrder,
@@ -275,6 +291,29 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                is_scale_mfma>::selected_mfma.k_per_blk);
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
+    static constexpr __device__ index_t NXdlPerWave()
+    {
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave = math::max(BlockSize / get_warp_size() / MWave, 1);
+        //static_assert(BlockSize % (get_warp_size() * MWave) == 0);
+        //static_assert(NPerBlock / NWave / NPerXdl > 0);
+        return math::max(NPerBlock / NWave / NPerXdl, 1);
+    };
+
+    static constexpr bool __device__ IsValidCompilationParameter()
+    {
+        // TODO: properly implement this check
+        constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave = BlockSize / (get_warp_size() * MWave);
+        if constexpr(NWave > 0)
+        {
+            return NPerBlock / (NWave * NPerXdl) > 0;
+        }
+        else
+        {
+            return false;
+        }
+    }
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
@@ -343,21 +382,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __host__ static auto CalculateNBlock(index_t N)
     {
         return math::integer_divide_ceil(N, NPerBlock);
-    }
-
-    template <index_t MNXdlPerWave, index_t MNWaves, index_t MNPerXdl, typename TileDesc_K0_MN_K1>
-    __host__ __device__ static constexpr auto MakeGemmMmaTileDescriptor(const TileDesc_K0_MN_K1&)
-    {
-        constexpr index_t K0 = TileDesc_K0_MN_K1{}.GetLength(Number<0>{});
-        constexpr index_t K1 = TileDesc_K0_MN_K1{}.GetLength(Number<2>{});
-
-        return transform_tensor_descriptor(
-            TileDesc_K0_MN_K1{},
-            make_tuple(make_merge_transform_v3_division_mod(make_tuple(Number<K0>{}, Number<K1>{})),
-                       make_unmerge_transform(make_tuple(
-                           Number<MNXdlPerWave>{}, Number<MNWaves>{}, Number<MNPerXdl>{}))),
-            make_tuple(Sequence<0, 2>{}, Sequence<1>{}),
-            make_tuple(Sequence<3>{}, Sequence<0, 1, 2>{}));
     }
 
     __host__ __device__ static auto MakeAGridDescriptor_AK0_M_AK1(
@@ -550,24 +574,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                 return b_grid_desc_bk0_n_bk1_permute;
             }
         }
-    }
-
-    template <typename ABlockDesc_AK0_M_AK1>
-    __host__ __device__ static constexpr auto
-    MakeAMmaTileDescriptor_M0_M1_M2_K(const ABlockDesc_AK0_M_AK1&)
-    {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-
-        return MakeGemmMmaTileDescriptor<MXdlPerWave, MWaves, MPerXdl>(ABlockDesc_AK0_M_AK1{});
-    }
-
-    template <typename BBlockDesc_BK0_N_BK1>
-    __host__ __device__ static constexpr auto
-    MakeBMmaTileDescriptor_N0_N1_N2_K(const BBlockDesc_BK0_N_BK1&)
-    {
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-
-        return MakeGemmMmaTileDescriptor<NXdlPerWave, NWaves, NPerXdl>(BBlockDesc_BK0_N_BK1{});
     }
 
     __host__ __device__ static auto
@@ -1083,7 +1089,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
     __device__ static constexpr auto GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t NWave = math::max(NPerBlock / (NXdlPerWave() * NPerXdl), 1);
 
         constexpr auto c_shuffle_block_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
@@ -1106,10 +1112,6 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 AccDataType,
                                 decltype(GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()),
                                 decltype(GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()),
-                                decltype(MakeAMmaTileDescriptor_M0_M1_M2_K(
-                                    GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1())),
-                                decltype(MakeBMmaTileDescriptor_N0_N1_N2_K(
-                                    GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1())),
                                 ABlockTransferSrcScalarPerVector,
                                 BBlockTransferSrcScalarPerVector,
                                 MPerBlock,
@@ -1118,10 +1120,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                 MPerXdl,
                                 NPerXdl,
                                 MXdlPerWave,
-                                NXdlPerWave,
                                 KPack>())>;
 
-    __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
+    __device__ static constexpr index_t
+    GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_desc_ak0_m_ak1 = GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1();
@@ -1151,9 +1153,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
+        #if 0
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
+                          (NPerBlock % (NXdlPerWave() * NPerXdl)) == 0,
                       "Invalid tuning param!");
+        #endif
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
@@ -1540,11 +1544,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
-                              NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
+                              NXdlPerWave() % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+            constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -1703,7 +1707,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave(), 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                   Sequence<CShuffleMXdlPerWavePerShuffle,
                                            CShuffleNXdlPerWavePerShuffle,
@@ -1966,11 +1970,11 @@ struct GridwiseGemm_xdl_cshuffle_v3
         // shuffle C and write out
         {
             static_assert(MXdlPerWave % CShuffleMXdlPerWavePerShuffle == 0 &&
-                              NXdlPerWave % CShuffleNXdlPerWavePerShuffle == 0,
+                              NXdlPerWave() % CShuffleNXdlPerWavePerShuffle == 0,
                           "wrong!");
 
             constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-            constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+            constexpr index_t NWave = NPerBlock / (NXdlPerWave() * NPerXdl);
 
             // TODO: hacky, fix it!
             constexpr auto c_thread_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
@@ -2104,7 +2108,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
             // space filling curve for threadwise C in VGPR
             constexpr auto sfc_c_vgpr =
-                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave, 1, 1, M2, 1, M4, 1>,
+                SpaceFillingCurve<Sequence<MXdlPerWave, NXdlPerWave(), 1, 1, M2, 1, M4, 1>,
                                   Sequence<0, 1, 2, 3, 4, 5, 6, 7>,
                                   Sequence<CShuffleMXdlPerWavePerShuffle,
                                            CShuffleNXdlPerWavePerShuffle,

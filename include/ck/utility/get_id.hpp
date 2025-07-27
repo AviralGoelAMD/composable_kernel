@@ -7,13 +7,33 @@
 
 namespace ck {
 
-__host__ __device__ constexpr index_t get_warp_size()
+__device__ constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+#if defined(__HIP_DEVICE_COMPILE__)
+#if defined(__GFX9__)
     return 64;
 #else
     return 32;
 #endif
+#else
+    return 64;
+#endif
+}
+
+inline __host__ index_t get_warp_size()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status == hipSuccess)
+    {
+        status = hipGetDeviceProperties(&props, device);
+        if(status == hipSuccess)
+        {
+            return props.major > 9 ? 32 : 64;
+        }
+    }
+    return 64;
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }

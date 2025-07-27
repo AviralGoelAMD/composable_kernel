@@ -21,8 +21,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -31,7 +29,6 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPacks>
 struct BlockwiseGemmXdlops_pipeline_v5
 {
@@ -44,8 +41,6 @@ template <index_t BlockSize,
           typename AccDataType,
           typename ATileDesc,
           typename BTileDesc,
-          typename AMmaTileDesc,
-          typename BMmaTileDesc,
           index_t ABlockTransferSrcScalarPerVector,
           index_t BBlockTransferSrcScalarPerVector,
           index_t MPerBlock,
@@ -54,7 +49,6 @@ template <index_t BlockSize,
           index_t MPerXDL,
           index_t NPerXDL,
           index_t MRepeat,
-          index_t NRepeat,
           index_t KPack
           // ,bool TransposeC //disable transposec right now...
           >
@@ -66,8 +60,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                        AccDataType,
                                        ATileDesc,
                                        BTileDesc,
-                                       AMmaTileDesc,
-                                       BMmaTileDesc,
                                        ABlockTransferSrcScalarPerVector,
                                        BBlockTransferSrcScalarPerVector,
                                        MPerBlock,
@@ -76,7 +68,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                        MPerXDL,
                                        NPerXDL,
                                        MRepeat,
-                                       NRepeat,
                                        KPack>
     : BlockwiseGemmXdlops_pipeline_base<BlockSize,
                                         ADataType,
@@ -85,8 +76,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                         AccDataType,
                                         ATileDesc,
                                         BTileDesc,
-                                        AMmaTileDesc,
-                                        BMmaTileDesc,
                                         ABlockTransferSrcScalarPerVector,
                                         BBlockTransferSrcScalarPerVector,
                                         MPerBlock,
@@ -95,7 +84,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                         MPerXDL,
                                         NPerXDL,
                                         MRepeat,
-                                        NRepeat,
                                         KPack>
 
 {
@@ -106,8 +94,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                                    AccDataType,
                                                    ATileDesc,
                                                    BTileDesc,
-                                                   AMmaTileDesc,
-                                                   BMmaTileDesc,
                                                    ABlockTransferSrcScalarPerVector,
                                                    BBlockTransferSrcScalarPerVector,
                                                    MPerBlock,
@@ -116,7 +102,6 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
                                                    MPerXDL,
                                                    NPerXDL,
                                                    MRepeat,
-                                                   NRepeat,
                                                    KPack>;
     using Base::A_K1;
     using Base::B_K1;
@@ -143,6 +128,8 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
     using Base::AMmaKStride;
     using Base::BMmaKStride;
+    using Base::NRepeat;
+    using Base::NWaves;
 
     static constexpr index_t PrefetchStages  = 3;
     static constexpr index_t PrefillStages   = 1;
@@ -168,6 +155,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
 
     __device__ static constexpr auto HotLoopScheduler()
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         // TODO: Take data type into consideration as pipe ver 3
         // A/B split schedule
         // compiler is likely to use ds_read2 when instruction width smaller than 16bytes
@@ -186,7 +174,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
         constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num;
 
-        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num;
+        constexpr auto num_mfma_inst = HotLoopInstList::C_MFMA_Inst_Num();
 
         constexpr auto mfma_cycle = HotLoopInstList::C_MFMA_Inst_Cycle;
         constexpr auto ds_read_a_issue_cycle =
@@ -314,6 +302,7 @@ struct BlockwiseGemmXdlops_pipeline_v5<BlockGemmPipelineScheduler::Intrawave,
         // IGLP COMPILER BUG:
         // If comment out following scheduler barrier would cause sanity fail.
         __builtin_amdgcn_sched_barrier(0);
+#endif
     }
 
     template <bool HasMainLoop,

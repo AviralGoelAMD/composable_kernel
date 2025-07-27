@@ -753,6 +753,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             return false;
         }
+        
+        if (is_gfx11_supported() && arg.KBatch > 1)
+        {
+            return false;
+        }
 
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
