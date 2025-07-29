@@ -111,23 +111,30 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
     */
 
-    #if (defined(USING_MFMA_16x16x32_F8) ||  \
-        defined(USING_MFMA_32x32x16_F8) ||  \
-        defined(USING_MFMA_16x16x16_F16) || \
-        defined(USING_MFMA_32x32x8_F16)) // K1 per Mfma = 0.5
-        static constexpr auto mfma_per_wg = 2;
-        static constexpr auto dsread_per_wg = 1;
-    #elif (defined(USING_MFMA_16x16x32_F16) || \
-        defined(USING_MFMA_32x32x16_F16) ||   \
-        defined(USING_MFMA_16x16x128_F4) ||   \
-        defined(USING_MFMA_32x32x64_F4)) // K1 per Mfma = 1
-        static constexpr auto mfma_per_wg = 1;
-        static constexpr auto dsread_per_wg = 1;
-    #elif (defined(USING_MFMA_16x16x128_F8) || \
-        defined(USING_MFMA_32x32x64_F8)) // K1 per Mfma = 2
-        static constexpr auto mfma_per_wg = 1;
-        static constexpr auto dsread_per_wg = 2;
+    // #if (defined(USING_MFMA_16x16x32_F8) ||  \
+    //     defined(USING_MFMA_32x32x16_F8) ||  \
+    //     defined(USING_MFMA_16x16x16_F16) || \
+    //     defined(USING_MFMA_32x32x8_F16)) // K1 per Mfma = 0.5
+    //     static constexpr auto mfma_per_wg = 2;
+    //     static constexpr auto dsread_per_wg = 1;
+    // #elif (defined(USING_MFMA_16x16x32_F16) || \
+    //     defined(USING_MFMA_32x32x16_F16) ||   \
+    //     defined(USING_MFMA_16x16x128_F4) ||   \
+    //     defined(USING_MFMA_32x32x64_F4)) // K1 per Mfma = 1
+    //     static constexpr auto mfma_per_wg = 1;
+    //     static constexpr auto dsread_per_wg = 1;
+    // #elif (defined(USING_MFMA_16x16x128_F8) || \
+    //     defined(USING_MFMA_32x32x64_F8)) // K1 per Mfma = 2
+    //     static constexpr auto mfma_per_wg = 1;
+    //     static constexpr auto dsread_per_wg = 2;
+    // #endif
+    #ifdef __gfx942__
+        static constexpr index_t mfma_per_wg = 2;
+    #else
+        static constexpr index_t mfma_per_wg = 1;
     #endif
+    static constexpr index_t dsread_per_wg = WG::kM * WG::kK * sizeof(ADataType) / WaveSize / Problem::VectorLoadSize;
+    static_assert((WG::kM * WG::kK * sizeof(ADataType) / WaveSize) % Problem::VectorLoadSize == 0);
 
     static constexpr index_t dsread_num_perK = dsread_per_wg * MIterPerWarp;
     static constexpr index_t dswrite_num_perK = dsread_num_perK / (MWarp * NWarp);
@@ -386,6 +393,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
                 SchedulerPerM(dsread_perM, dswrite_perM, load_perM);
             }
         }
+        // Add Aload when Aload data > needed
         if(Aload_num_perK == 0)
             __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
         __builtin_amdgcn_sched_barrier(0);
