@@ -26,7 +26,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     constexpr bool kPadN = false;
     constexpr bool kPadK = false;
 
-    constexpr int kBlockPerCu = 2;
+    constexpr int kBlockPerCu = 1;
 
     constexpr ck_tile::index_t M_Tile = GemmConfig<BDataType>::M_Tile;
     constexpr ck_tile::index_t N_Tile = GemmConfig<BDataType>::N_Tile;
@@ -52,7 +52,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
 
-    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV0<GemmPipelineProblem>;
+    using BaseGemmPipeline = ck_tile::BaseFlatmmPipelineAGmemBGmemCRegV1<GemmPipelineProblem>;
 
     const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
     const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain * K_Tile;
@@ -98,7 +98,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_con
 
         using CodegenFlatmmPolicy = ck_tile::UniversalFlatmmPipelineAgBgCrPolicy;
         using CodegenFlatmmPipeline =
-            ck_tile::FlatmmPipelineAGmemBGmemCRegV0<CodegenPipelineProblem, CodegenFlatmmPolicy>;
+            ck_tile::FlatmmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem, CodegenFlatmmPolicy>;
 
         // ToDo: Will add the codegen part to test different pipeline policies in GEMM.
         // Now we only use the BlockGemmASmemBSmemCRegV1DefaultPolicy.
