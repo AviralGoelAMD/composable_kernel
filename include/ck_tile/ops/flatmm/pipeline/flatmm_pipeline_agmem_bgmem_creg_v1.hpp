@@ -147,6 +147,7 @@ struct FlatmmPipelineAGmemBGmemCRegV1
         // clang-format off
         return concat('_', "pipeline_AGmemBGmemCRegV1", 
                       concat('x', kMPerBlock, kNPerBlock, kKPerBlock,  BlockSize),
+                      concat('x', WG::kM, WG::kN, WG::kK),
                       concat('x', GetVectorSizeA(), GetVectorSizeB(), GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK));
         // clang-format on
