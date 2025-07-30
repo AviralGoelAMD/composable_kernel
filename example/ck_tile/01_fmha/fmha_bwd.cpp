@@ -63,7 +63,7 @@ auto create_args(int argc, char* argv[])
                 "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
                 "a(libi) or 2, alibi with 1*h. a:1, b*h")
         .insert("dbias", "0", "output bias gradient or not")
-        .insert("prec", "fp16", "data type. fp16 or bf16")
+        .insert("prec", "fp16", "data type. fp32/fp16/bf16")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
@@ -106,6 +106,14 @@ auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 {
     double rtol = 1e-2;
     double atol = 1e-2;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaBwdFp32>(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
+{
+    double rtol = 1e-4;
+    double atol = 1e-4;
     return ck_tile::make_tuple(rtol, atol);
 }
 
@@ -998,7 +1006,11 @@ int main(int argc, char* argv[])
         return -1;
 
     const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
+    if(data_type == "fp32")
+    {
+        return run<FmhaBwdFp32>(arg_parser) ? 0 : -2;
+    }
+    else if(data_type == "fp16")
     {
         return run<FmhaBwdFp16>(arg_parser) ? 0 : -2;
     }
