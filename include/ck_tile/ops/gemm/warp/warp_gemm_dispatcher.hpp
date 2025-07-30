@@ -22,6 +22,11 @@ template <typename AType,
 struct WarpGemmMfmaDispatcher;
 
 // clang-format off
+// fp32
+// ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity
+template<> struct WarpGemmMfmaDispatcher<float, float, float, 16, 16,  4, false> { using Type = WarpGemmMfmaF32F32F32M16N16K4; };
+template<> struct WarpGemmMfmaDispatcher<float, float, float, 16, 16, 16, false> { using Type = WarpGemmMfmaF32F32F32M16N16K16<>; };
+template<> struct WarpGemmMfmaDispatcher<float, float, float, 16, 16, 16, true> { using Type = WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution<>; };
 // fp16
 // ADataType, BDataType, AccDataType, MPerWave, NPerWave, KPerWave, TransposeC, SwizzleA, UseStructuredSparsity
 template<> struct WarpGemmMfmaDispatcher<ck_tile::half_t, ck_tile::half_t, float, 32, 32,  8, false> { using Type = WarpGemmMfmaF16F16F32M32N32K8; };
