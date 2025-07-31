@@ -86,6 +86,15 @@ struct FlatmmConfig16_950 : public FlatmmConfig16<DataType>
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(DataType) == 2 ? 32 : 128;
 };
 
+template <typename DataType>
+struct FlatmmConfig16_WMMA : public FlatmmConfig16<DataType>
+{
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(DataType);
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
 template <typename ADataType>
 struct GemmBasicTypeConfig;
 

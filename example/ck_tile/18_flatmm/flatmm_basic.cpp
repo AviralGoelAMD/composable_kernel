@@ -101,7 +101,6 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              FlatmmConfig::M_Warp,
@@ -120,7 +119,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
         auto kargs = Kernel::MakeKernelArgs(args);
 
         const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -171,15 +170,13 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
             ave_time = ck_tile::launch_kernel_preprocess(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };
@@ -192,6 +189,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::set>{});
         }
+        #if 0
         else
         {
             Run(has_hot_loop_,
@@ -199,6 +197,7 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                 ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                            ck_tile::memory_operation_enum::atomic_add>{});
         }
+        #endif
     };
     BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     return ave_time;
@@ -272,9 +271,13 @@ int main(int argc, char* argv[])
         {
             return !run_flatmm_example<FlatmmConfig16_950>(argc, argv);
         }
-        else
+        else if(warp_tile == 3)
         {
             return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
+        }
+        else if (warp_tile == 4)
+        {
+            return !run_flatmm_example<FlatmmConfig16_WMMA>(argc, argv); 
         }
     }
     catch(const std::runtime_error& e)
