@@ -25,6 +25,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added rotating buffer feature for CK_Tile GEMM.
 * Added int8 support for CK_TILE GEMM.
 * Added support for elementwise kernel.
+* Added WMMA (gfx12) support for FMHA.
 
 ### Optimized
 
