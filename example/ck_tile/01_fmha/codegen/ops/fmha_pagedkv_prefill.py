@@ -435,7 +435,7 @@ class FmhaFwdKernel:
 
 # TODO: design a more practical way to do it
 # this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
+def get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype: str) -> Optional[dict]:
     if dtype == 'fp16' or dtype == 'bf16':
         return {
             # '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
@@ -454,7 +454,33 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     else:
         return None
 
-def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
+def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype: str) -> Optional[dict]:
+    if dtype == 'fp16' or dtype == 'bf16':
+        return {
+            #                       bm0, bn0, bk0, bn1, bk1,
+           # '32' : FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+           # '64' : FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+           #'192' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+           #'256' : FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        }
+    elif dtype == 'fp8' or dtype == 'bf8':
+        return {
+            #                       bm0, bn0, bk0, bn1, bk1,
+             '64' : FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '256' : FmhaFwdTileSize( 64,  32,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+        }
+    else:
+        return None
+
+def get_fmha_fwd_tile_dict_from_dtype(arch: str, dtype: str) -> Optional[dict]:
+    if arch.startswith('gfx12'):
+        return get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype)
+    else:
+        return get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype)
+
+def get_fwd_blobs(arch: str, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdPipeline]:
@@ -484,7 +510,7 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     api_pool = FmhaFwdApiPool(mask_impl)
 
     for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
+        d = get_fmha_fwd_tile_dict_from_dtype(arch, dtype)
         if d == None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
@@ -572,14 +598,14 @@ def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
 def write_blobs(arch: str, output_dir: Path, kernel_filter: str, receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+    api_pool, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
 def list_blobs(arch: str, file_path: Path, kernel_filter: str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
+        _, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_API_FILENAME) + "\n")
