@@ -27,6 +27,7 @@ K0_MAX_SUBMAX_MAP = {
     64 : 64,
     96 : 128,
     128: 128,
+    192: 192,
     256: 256
 }
 
@@ -504,11 +505,11 @@ class KernelComponentFactoryGfx9:
             return {
                 (32, 32)  : [FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (64, 64)  : [FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-            ### (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-            ### (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
+                (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (192,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-            ### (192,192) : [FmhaFwdTileSize(128, 128, 32, 192, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
+                (192,192) : [FmhaFwdTileSize(128, 128, 32, 192, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (256,256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }
         elif dtype == 'fp8' or dtype == 'bf8':
@@ -704,13 +705,13 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
     (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
 
-def write_blobs(arch : str, output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(arch: str, output_dir: Path, kernel_filter: str, receipt, optdim_list, mask_impl) -> None:
     api_pool, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(arch : str, file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch: str, file_path: Path, kernel_filter: str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(arch, kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:

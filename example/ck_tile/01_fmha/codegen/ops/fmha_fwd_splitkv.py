@@ -615,9 +615,9 @@ def get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype : str) -> Optional[dict]:
         return {
             '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-        ### '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-        ### '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
@@ -660,9 +660,9 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
         return {
             '32'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-        ### '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-        ### '160' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            '160' : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
     }
     elif dtype == 'fp8' or dtype == 'bf8':
@@ -674,7 +674,7 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
     else:
         return None
 
-def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl) -> List[FmhaFwdSplitKVKernel]:
+def get_fwd_splitkv_blobs(arch: str, kernel_filter: Optional[str], receipt, mask_impl, optdim_list) -> List[FmhaFwdSplitKVKernel]:
     Pipeline = FmhaFwdSplitKVPipeline
     Kernel = FmhaFwdSplitKVKernel
 
@@ -778,6 +778,9 @@ def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, ma
                 if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+                if optdim_list != [-1]:
+                    if hdim not in optdim_list:
+                        continue
                 # Flash attention integration
                 if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
@@ -814,7 +817,7 @@ def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, ma
 
     return gen
 
-def get_fwd_splitkv_combine_blobs(arch : str, kernel_filter : Optional[str], receipt) -> List[FmhaFwdSplitKVCombineKernel]:
+def get_fwd_splitkv_combine_blobs(arch: str, kernel_filter: Optional[str], receipt, optdim_list) -> List[FmhaFwdSplitKVCombineKernel]:
     Pipeline = FmhaFwdSplitKVCombinePipeline
     Kernel = FmhaFwdSplitKVCombineKernel
 
@@ -861,6 +864,9 @@ def get_fwd_splitkv_combine_blobs(arch : str, kernel_filter : Optional[str], rec
                 if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+                if optdim_list != [-1]:
+                    if hdim not in optdim_list:
+                        continue
                 # Aiter(mha_varlen_fwd) integration
                 if receipt == 200:
                     cond = dtype in ['fp16', 'bf16']
@@ -883,15 +889,14 @@ def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -
     file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
     file_path.write_text(api_pool.api)
 
-def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(arch: str, output_dir: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
-    assert optdim_list == [-1]
 
-    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt)
+    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt, optdim_list)
     for kernel in combine_kernels:
         write_single_kernel(kernel, output_dir)
-    kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl)
+    kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl, optdim_list)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
 
@@ -934,16 +939,15 @@ def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdi
         )
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(arch : str, file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(arch: str, file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
-    assert optdim_list == [-1]
 
     with file_path.open('a') as f:
-        kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt)
-        for kernel in kernels:
+        combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt, optdim_list)
+        for kernel in combine_kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl)
+        kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_SPLITKV_API_FILENAME) + "\n")
