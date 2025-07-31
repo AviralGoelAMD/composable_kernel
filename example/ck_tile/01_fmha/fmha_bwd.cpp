@@ -36,7 +36,7 @@ std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("v", "1", "weather do CPU validation or not")
+    arg_parser.insert("v", "1", "whether do CPU validation or not")
         .insert("mode", "0", "kernel mode. 0:batch, 1:group")
         .insert("b", "2", "batch size")
         .insert("h", "8", "num of head, for q")
@@ -328,6 +328,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
             ? std::array<ck_tile::index_t, 5>{nsplits, shape_batch, nhead, shape_seqlen_q, hdim_q}
             : std::array<ck_tile::index_t, 5>{nsplits, shape_batch, shape_seqlen_q, nhead, hdim_q});
 
+    // TODO: It doesn't seem right that all tensors are initialized using the same seed.
+    // Investigate how this affects results and fix it if needed.
     if(init_method == 0)
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-2.f, 2.f, seed}(q_host);
