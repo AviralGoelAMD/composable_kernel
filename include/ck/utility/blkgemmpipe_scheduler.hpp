@@ -78,7 +78,7 @@ struct BlockwiseGemmXdlops_pipeline_hotloop_inst
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t WaveNumN = NPerBlock / (NRepeat * NPerXDL);
     static constexpr index_t WaveSize = BlockSize / WaveNumM / WaveNumN;
-    
+
     static constexpr index_t A_LDS_Read_Width = ALDSReadWidth;
     static constexpr index_t B_LDS_Read_Width = BLDSReadWidth;
 

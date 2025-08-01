@@ -176,15 +176,15 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
-    template<bool isWave64>
+    template <bool isWave64>
     static constexpr auto GetNXdlPerWave()
     {
-        constexpr index_t Waves = isWave64 ? BlockSize / 64 : BlockSize / 32;
+        constexpr index_t Waves  = isWave64 ? BlockSize / 64 : BlockSize / 32;
         constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXDL);
         static_assert(MWaves > 0);
 
         constexpr index_t NWaves = Waves / MWaves;
-        if constexpr (NWaves == 0)
+        if constexpr(NWaves == 0)
         {
             return 0;
         }
@@ -324,8 +324,9 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
     ///
     struct Invoker : public BaseInvoker
     {
-        template<typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -798,7 +799,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
 
             return ave_time;
         }
-        
+
         /// @brief  This function issues GPU kernel execution.
         /// @param arg           The GPU kernel arguments.
         /// @param stream_config The HIP stream configuration helper structure.
@@ -851,8 +852,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             return false;
         }
-        
-        if (is_gfx11_supported() && arg.KBatch > 1)
+
+        if(is_gfx11_supported() && arg.KBatch > 1)
         {
             return false;
         }
@@ -885,7 +886,8 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return GridwiseGemm32::CheckValidity(reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
             }
             else
             {

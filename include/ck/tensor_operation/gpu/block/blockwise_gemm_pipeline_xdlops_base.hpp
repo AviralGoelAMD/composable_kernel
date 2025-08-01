@@ -78,7 +78,6 @@ struct BlockwiseGemmXdlops_pipeline_base
             return 1;
     }();
 
-
     using HotLoopInstList =
         ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                       MPerBlock,
@@ -221,7 +220,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
-#if defined(__HIP_DEVICE_COMPILE__)        
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 

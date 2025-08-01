@@ -98,6 +98,5 @@ inline bool is_gfx103_supported()
            ck::get_device_name() == "gfx1035" || ck::get_device_name() == "gfx1036";
 }
 
-
 } // namespace ck
 #endif

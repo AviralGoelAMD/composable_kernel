@@ -43,16 +43,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
     {
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared,
-        karg);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared,
+            karg);
     }
 #else
     ignore = karg;
@@ -81,18 +81,18 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // operate on different lds chunk at same time without order dependecy
     if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
     {
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
-        p_shared_0,
-        p_shared_1,
-        karg);
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + splitk_batch_offset.b_k_split_offset,
+            karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
+            p_shared_0,
+            p_shared_1,
+            karg);
     }
 #else
     ignore = karg;
@@ -1159,24 +1159,24 @@ struct GridwiseGemm_xdl_cshuffle_v3
     {
         if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
         {
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
-        if constexpr(MWaves > 0 && NWaves > 0)
-        {
-            constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
-            if constexpr(WaveSize == get_warp_size())
+            constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
+            constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
+            if constexpr(MWaves > 0 && NWaves > 0)
             {
-                return true;
+                constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
+                if constexpr(WaveSize == get_warp_size())
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
             else
             {
                 return false;
             }
-        }
-        else
-        {
-            return false;
-        }
         }
         else
         {
