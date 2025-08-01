@@ -219,7 +219,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        math::max(NXdlPerWave64,1),
+        math::max(NXdlPerWave64, 1),
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -312,7 +312,7 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         else
             return 1;
     }();
-    
+
     /// @brief  Helper structure responsible for kernel invocation.
     ///
     /// @paragraph  The `Invoker` class is responsible for preparation and invocation of actual GPU
