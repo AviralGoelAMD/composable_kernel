@@ -93,6 +93,7 @@ struct fmha_bwd_args
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void* seqlen_k_ptr;
+    const void* seqstart_dq_acc_ptr;
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -180,6 +181,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.seqstart_q_ptr,
                                                       args.seqstart_k_ptr,
                                                       args.seqlen_k_ptr,
+                                                      args.seqstart_dq_acc_ptr,
                                                       args.hdim_q,
                                                       args.hdim_v,
                                                       args.nhead_q,
@@ -332,6 +334,7 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.dq_ptr,
                                                         args.seqstart_q_ptr,
                                                         args.seqstart_k_ptr,
+                                                        args.seqstart_dq_acc_ptr,
                                                         args.hdim_q,
                                                         args.stride_dq,
                                                         args.stride_dq_acc,
@@ -371,6 +374,7 @@ template <ck_tile::index_t HDim_,
           bool kPadD_,
           bool kPadDv_,
           bool kIsDeterministic_,
+          bool kAtomic32_,
           bool kUseTrLoad_,
           ck_tile::index_t MaxSeqLenQ_>
 struct fmha_bwd_dq_dk_dv_traits_
@@ -412,7 +416,8 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           bool kPadS_,
           bool kPadD_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          bool kAtomic32_ = true>
 struct fmha_bwd_convert_dq_traits_
 {
     static constexpr ck_tile::index_t HDim = HDim_;
@@ -421,6 +426,7 @@ struct fmha_bwd_convert_dq_traits_
     static constexpr bool kPadS            = kPadS_;
     static constexpr bool kPadD            = kPadD_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kAtomic32        = kAtomic32_;
 };
 
 template <typename Traits_>
@@ -445,6 +451,7 @@ struct fmha_bwd_traits
     bool has_dropout;
     bool is_store_randval;
     bool is_deterministic;
+    bool is_atomic_fp32;
     // TODO: padding check is inside this api
 };
 template <int Version = 2>

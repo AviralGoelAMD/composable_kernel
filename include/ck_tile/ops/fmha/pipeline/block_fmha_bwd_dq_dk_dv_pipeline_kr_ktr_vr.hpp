@@ -38,15 +38,16 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
     static constexpr index_t kBlockPerCu = Problem::kBlockPerCu;
     static constexpr index_t kBlockSize  = Problem::kBlockSize;
 
-    static constexpr index_t kM0        = BlockFmhaShape::kM0;
-    static constexpr index_t kN0        = BlockFmhaShape::kN0;
-    static constexpr index_t kK0        = BlockFmhaShape::kK0;
-    static constexpr index_t kK1        = BlockFmhaShape::kK1;
-    static constexpr index_t kK2        = BlockFmhaShape::kK2;
-    static constexpr index_t kK3        = BlockFmhaShape::kK3;
-    static constexpr index_t kK4        = BlockFmhaShape::kK4;
-    static constexpr index_t kQKHeaddim = BlockFmhaShape::kQKHeaddim;
-    static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kM0         = BlockFmhaShape::kM0;
+    static constexpr index_t kN0         = BlockFmhaShape::kN0;
+    static constexpr index_t kK0         = BlockFmhaShape::kK0;
+    static constexpr index_t kK1         = BlockFmhaShape::kK1;
+    static constexpr index_t kK2         = BlockFmhaShape::kK2;
+    static constexpr index_t kK3         = BlockFmhaShape::kK3;
+    static constexpr index_t kK4         = BlockFmhaShape::kK4;
+    static constexpr index_t kQKHeaddim  = BlockFmhaShape::kQKHeaddim;
+    static constexpr index_t kVHeaddim   = BlockFmhaShape::kVHeaddim;
+    static constexpr index_t kGemm4WarpN = BlockFmhaShape::Gemm0WarpTile::at(ck_tile::number<1>{});
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
     static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
@@ -54,6 +55,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kIsAtomic32      = Problem::kIsAtomic32;
     static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
     static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
@@ -67,7 +69,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
         kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
-    static constexpr index_t kAlignmentQGrad = 1;
+    static constexpr index_t kAlignmentQGrad  = 1;
     static constexpr index_t kAlignmentKGrad =
         kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
@@ -750,7 +752,14 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVR
             }
             else
             {
-                update_tile(dq_dram_window, dq_acc);
+                if constexpr(kIsAtomic32)
+                {
+                    update_tile(dq_dram_window, dq_acc);
+                }
+                else
+                {
+                    update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                }
             }
             move_tile_window(dq_dram_window, {kM0, 0});
 
