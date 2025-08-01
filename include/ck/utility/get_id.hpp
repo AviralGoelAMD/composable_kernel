@@ -22,6 +22,7 @@ __device__ constexpr index_t get_warp_size()
 
 inline __host__ index_t get_warp_size()
 {
+#if !(defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC))
     hipDeviceProp_t props{};
     int device;
     auto status = hipGetDevice(&device);
@@ -33,6 +34,7 @@ inline __host__ index_t get_warp_size()
             return props.major > 9 ? 32 : 64;
         }
     }
+#endif
     return 64;
 }
 
