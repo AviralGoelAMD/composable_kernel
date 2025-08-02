@@ -190,7 +190,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         }
         else
         {
-            return NPerBlock / (NWaves * NPerXDL);
+            if constexpr(NPerBlock % (NPerXDL * NWaves) == 0)
+            {
+                return NPerBlock / (NWaves * NPerXDL);
+            }
+            else
+            {
+                return 0;
+            }
         }
     }
     // GridwiseGemm
