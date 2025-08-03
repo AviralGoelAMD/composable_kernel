@@ -36,12 +36,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
 #if defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__)
-#if defined(__gfx11__)
-    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
-#else
-    constexpr bool SupportMemOp = true;
-#endif
-    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -72,14 +67,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
 #if(defined(__gfx9__) || defined(__gfx12__) || defined(__gfx11__))
-#if defined(__gfx11__)
-    constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
-#else
-    constexpr bool SupportMemOp = true;
-#endif
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
-    if constexpr(GridwiseGemm::IsValidCompilationParameter() && SupportMemOp)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -1155,15 +1145,29 @@ struct GridwiseGemm_xdl_cshuffle_v3
                          c_block_size * sizeof(CShuffleDataType));
     }
 
+    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+        // Check tile size
 #if defined(__gfx11__) || defined(__gfx12__)
         if constexpr(MPerXdl != 16 || NPerXdl != 16)
         {
             return false;
         }
 #endif
+        // Check atomic caps
+#if defined(__gfx11__)
+        constexpr bool SupportMemOp = CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;
+#else
+        constexpr bool SupportMemOp = sizeof(CDataType) >= 2 || (CGlobalMemoryDataOperation ==
+                                                                 InMemoryDataOperationEnum::Set);
+#endif
+        if constexpr(SupportMemOp == false)
+        {
+            return false;
+        }
 
+        // Check tile size
         if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
         {
             constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
