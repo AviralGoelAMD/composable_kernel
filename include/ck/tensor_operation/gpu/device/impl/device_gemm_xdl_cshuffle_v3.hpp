@@ -870,6 +870,14 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             return false;
         }
 
+        if(is_gfx11_supported() || is_gfx12_supported())
+        {
+            if(MPerXDL != 16 || NPerXDL != 16)
+            {
+                return false;
+            }
+        }
+
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||
                                                        GemmSpec == GemmSpecialization::MNKPadding ||
@@ -982,6 +990,25 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             {BlockGemmPipelineVersion::v4, "v4"},
             {BlockGemmPipelineVersion::v5, "v5"}};
 
+        index_t PrefetchStages = 0;
+        index_t AMmaKStride    = 0;
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                PrefetchStages = GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
+                AMmaKStride    = GridwiseGemm64::BlockwiseGemmPipe::AMmaKStride;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                PrefetchStages = GridwiseGemm32::BlockwiseGemmPipe::PrefetchStages;
+                AMmaKStride    = GridwiseGemm32::BlockwiseGemmPipe::AMmaKStride;
+            }
+        }
+
         // clang-format off
         str << "DeviceGemmXdlUniversal"
             << "<"
@@ -1003,13 +1030,11 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             << "BlkGemmPipelineScheduler: "
             << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
             << "BlkGemmPipelineVersion: "
-            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", ";
-            #if 0
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages << ", "
+            << PrefetchStages << ", "
             << "Kpack: "
-            << GridwiseGemm::BlockwiseGemmPipe::AMmaKStride;
-            #endif
+            << AMmaKStride;
         // clang-format on
 
         return str.str();

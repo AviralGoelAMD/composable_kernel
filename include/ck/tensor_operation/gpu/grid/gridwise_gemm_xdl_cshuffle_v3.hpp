@@ -1157,6 +1157,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
 
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+#if defined(__gfx11__) || defined(__gfx12__)
+        if constexpr(MPerXdl != 16 || NPerXdl != 16)
+        {
+            return false;
+        }
+#endif
+
         if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
         {
             constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
@@ -1186,6 +1193,26 @@ struct GridwiseGemm_xdl_cshuffle_v3
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)
     {
+        if constexpr((MPerXdl * MXdlPerWave) == 0 || (NXdlPerWave * NPerXdl) == 0)
+        {
+            return false;
+        }
+        else
+        {
+            if constexpr((MPerBlock % (MPerXdl * MXdlPerWave) != 0) ||
+                         (NPerBlock % (NXdlPerWave * NPerXdl) != 0))
+            {
+                return false;
+            }
+            else
+            {
+                if(BlockwiseGemmPipe::WaveSize != get_warp_size())
+                {
+                    return false;
+                }
+            }
+        }
+
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -68,8 +68,11 @@ inline bool is_gfx11_supported()
 inline bool is_xdl_supported()
 {
     return ck::get_device_name() == "gfx908" || ck::get_device_name() == "gfx90a" ||
-           ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
-           is_gfx12_supported() || is_gfx11_supported();
+           ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"
+#if defined(CK_ENABLE_DYNAMIC_WARP_SIZE)
+           || is_gfx12_supported() || is_gfx11_supported()
+#endif
+        ;
 }
 
 inline bool is_lds_direct_load_supported()
