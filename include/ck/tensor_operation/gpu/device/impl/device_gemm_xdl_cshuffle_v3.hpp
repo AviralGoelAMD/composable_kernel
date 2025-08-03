@@ -886,6 +886,15 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
         }
 
+        if(is_gfx11_supported())
+        {
+            if constexpr(std::is_same_v<ADataType, ck::f8_t> ||
+                         std::is_same_v<ADataType, ck::bf8_t>)
+            {
+                return false;
+            }
+        }
+
         if((arg.K % AK1 != 0 || arg.K % BK1 != 0) && !(GemmSpec == GemmSpecialization::MKPadding ||
                                                        GemmSpec == GemmSpecialization::NKPadding ||
                                                        GemmSpec == GemmSpecialization::MNKPadding ||
