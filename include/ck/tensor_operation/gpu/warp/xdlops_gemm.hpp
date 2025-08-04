@@ -82,6 +82,7 @@ enum struct MfmaInstr
     wmma_f32_16x16x16_f16,
     wmma_f32_16x16x16_bf16,
     wmma_i32_16x16x16_iu8,
+    wmma_unsupport_16x16x16_gfx11,
     // gfx12
     wmma_f32_16x16x16_f16_gfx12,
     wmma_f32_16x16x16_bf16_gfx12,
@@ -998,6 +999,16 @@ struct mfma_type<MfmaInstr::wmma_i32_16x16x16_iu8> : public mfma_type_gfx11_base
     }
 };
 
+template <>
+struct mfma_type<MfmaInstr::wmma_unsupport_16x16x16_gfx11> : public mfma_type_gfx11_base
+{
+    template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA&, const FloatB&, FloatC&) const
+    {
+        // empty for all unsupported types.
+    }
+};
+
 // gfx12
 struct mfma_type_gfx12_base
 {
@@ -1374,6 +1385,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8f8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #else
         return MfmaInstr::mfma_f32_16x16x32f8f8;
 #endif
@@ -1384,6 +1397,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8f8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #elif defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x128f8f6f4;
 #else
@@ -1457,6 +1472,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #else
         return MfmaInstr::mfma_f32_16x16x32bf8bf8;
 #endif
@@ -1467,6 +1484,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #elif defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x128f8f6f4;
 #else
@@ -1495,6 +1514,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8bf8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #else
         return MfmaInstr::mfma_f32_16x16x32f8bf8;
 #endif
@@ -1505,6 +1526,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_f8bf8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #elif defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x128f8f6f4;
 #else
@@ -1533,6 +1556,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8f8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #else
         return MfmaInstr::mfma_f32_16x16x32bf8f8;
 #endif
@@ -1543,6 +1568,8 @@ struct MfmaSelector
     {
 #if defined(__gfx12__)
         return MfmaInstr::wmma_f32_16x16x16_bf8f8_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16x16_gfx11;
 #elif defined(__gfx950__)
         return MfmaInstr::mfma_f32_16x16x128f8f6f4;
 #else
