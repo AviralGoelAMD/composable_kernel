@@ -812,6 +812,28 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 cond = dtype in ['fp16', 'bf16']
                 if not cond:
                     continue
+
+            # fp32 only, all variations
+            if receipt == 800:
+                cond = dtype == 'fp32'
+                if not cond:
+                    continue
+            # fp32 only, minimal set of parameters
+            elif receipt == 801:
+                cond = dtype == 'fp32'
+                cond &= hdim in [48, 128]
+                cond &= mode == 'batch'
+                cond &= bias == 'no'
+                cond &= dropout == 'no'
+                cond &= mask == 's_no'
+                cond &= deterministic == "f"
+                if not cond:
+                    continue
+            else:
+                # Don't build fp32 by default
+                if dtype == 'fp32':
+                    continue
+
             gen_dot_do_o[t.dot_do_o_kernel] = True
             gen_dq_dk_dv[t.dq_dk_dv_kernel] = True
             gen_convert_dq[t.convert_dq_kernel] = True
