@@ -17,7 +17,7 @@ inline void CheckHipError(hipError_t err)
 template <typename T>
 auto AllocDevMem(const size_t n)
 {
-    auto hip_deleter = [](int* ptr) {
+    auto hip_deleter = [](T* ptr) {
         if(!ptr)
         {
             return;
@@ -29,7 +29,7 @@ auto AllocDevMem(const size_t n)
         }
         std::cout << "hipFree called for device memory at " << ptr << std::endl;
     };
-    std::unique_ptr<int, decltype(hip_deleter)> d_data(nullptr, hip_deleter);
+    std::unique_ptr<T, decltype(hip_deleter)> d_data(nullptr, hip_deleter);
 
     // Allocate memory on the device
     void* ptr = nullptr;
@@ -40,7 +40,7 @@ auto AllocDevMem(const size_t n)
     std::cout << "Allocated device memory at " << ptr << std::endl;
 
     // Transfer ownership to the unique_ptr
-    d_data.reset(static_cast<int*>(ptr));
+    d_data.reset(static_cast<T*>(ptr));
     return d_data;
 }
 
