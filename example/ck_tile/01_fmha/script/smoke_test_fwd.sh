@@ -6,7 +6,7 @@ KNAME=1
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
+COMMON_ARGS='-v=1 -warmup=5 -repeat=10'
 # mode=0
 # export HIP_VISIBLE_DEVICES=4
 
@@ -65,6 +65,16 @@ run_fp32_tests() {
     done ; done ; done ; done ; done
     done ; done ; done ; done ; done
     done ;
+}
+
+run_fp32_tests_1() {
+    for perm in 0 1 ; do
+    for vlayout in "r" "c" ; do
+
+    $EXE -prec=fp32 -mode=0 -b=3072 -h=1 -s=32 -s_k=200 -d=48  -iperm=$perm -operm=$perm -vlayout=$vlayout -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp32 -mode=0 -b=1792 -h=1 -s=32 -s_k=200 -d=128 -iperm=$perm -operm=$perm -vlayout=$vlayout -kname=$KNAME $COMMON_ARGS
+
+    done ; done
 }
 
 run_fp16_bf16_tests() {
@@ -135,9 +145,10 @@ run_fp16_appendkv_tests() {
 
 set -x
 
-run_fp32_tests
-run_fp16_bf16_tests
-run_fp8_tests
+# run_fp32_tests
+run_fp32_tests_1
+# run_fp16_bf16_tests
+# run_fp8_tests
 
 if [ $TEST_APPENDKV -eq 1 ] ; then
     run_fp16_appendkv_tests
