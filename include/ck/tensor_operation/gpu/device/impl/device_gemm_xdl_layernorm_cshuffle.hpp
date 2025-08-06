@@ -435,6 +435,8 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         CReduceThreadClusterLengths_MPerBlock_NPerBlock,
         CReduceThreadCopySrcDstScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using Block2CTileMap = typename GridwiseGemm::DefaultBlock2CTileMap;
 

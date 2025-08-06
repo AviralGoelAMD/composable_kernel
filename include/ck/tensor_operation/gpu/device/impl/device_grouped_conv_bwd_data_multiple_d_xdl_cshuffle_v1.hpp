@@ -471,10 +471,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmMultiDTemplateParams>;
+    template <index_t NXdlPerWave_>
     using GridwiseGemmCTranspose = std::conditional_t<
         CTranspose,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmCTransposeTemplateParameters>,
         GridwiseGemm>;
+
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     template <typename EGridDesc_M_N>
     static auto

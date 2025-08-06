@@ -514,6 +514,8 @@ struct
         CShuffleNXdlPerWavePerShuffle,
         CBlockTransferClusterLengths_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl,
         CBlockTransferScalarPerVector_NWaveNPerXdl>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // Argument
     struct Argument : public BaseArgument

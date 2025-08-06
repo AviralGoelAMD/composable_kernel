@@ -482,6 +482,8 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         isMultiA || isMultiB,
         GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
     using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;

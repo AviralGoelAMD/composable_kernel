@@ -575,9 +575,12 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // GridwiseGemm
-    using GridwiseGemmAtomicAdd = GridwiseGemmSplitKMultipleD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmAtomicAddBase = GridwiseGemmSplitKMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
@@ -601,7 +604,7 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -623,6 +626,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemmAtomicAdd64 = GridwiseGemmAtomicAddBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemmAtomicAdd32 = GridwiseGemmAtomicAddBase<NXdlPerWave32>;
 
     using AGridDesc_AKB_AK0_M_AK1 =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AKB_AK0_M_AK1(

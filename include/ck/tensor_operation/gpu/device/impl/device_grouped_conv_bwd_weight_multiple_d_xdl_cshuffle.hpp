@@ -359,6 +359,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         PipelineVersion::v1,
         ComputeTypeA,
         ComputeTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     static constexpr auto MakeElementwiseInputSequence()
     {

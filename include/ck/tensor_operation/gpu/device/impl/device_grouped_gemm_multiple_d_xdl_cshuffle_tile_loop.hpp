@@ -525,6 +525,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         BlkGemmPipelineVer,
         ComputeTypeA,
         ComputeTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using KernelArguments = GroupedGemmKernelArgument<NumDTensor>;
     using Block2ETileMap  = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock, NPerBlock>;

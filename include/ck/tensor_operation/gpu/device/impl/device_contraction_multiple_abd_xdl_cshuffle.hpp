@@ -203,7 +203,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWav_,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -226,6 +226,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         PipelineVer>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     static constexpr auto matrix_padder =
         ck::tensor_operation::device::MatrixPadder<GemmSpec, index_t, index_t, index_t>{

@@ -519,6 +519,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         CDE1ShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using A0GridDesc_AK0_M_AK1 =
         remove_cvref_t<decltype(GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(

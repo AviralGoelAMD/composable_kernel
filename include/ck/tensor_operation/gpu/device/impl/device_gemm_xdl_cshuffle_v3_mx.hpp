@@ -272,6 +272,8 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             BlkGemmPipelineVer,
             ComputeTypeA,
             ComputeTypeB>>;
+    using GridwiseGemm64   = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32   = GridwiseGemmBase<NXdlPerWave32>;
 
     using Argument = typename GridwiseGemm::Argument;
 

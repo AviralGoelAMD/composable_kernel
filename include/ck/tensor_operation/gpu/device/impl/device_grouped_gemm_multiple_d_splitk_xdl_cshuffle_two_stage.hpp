@@ -154,7 +154,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         LoopSched,
         PipelineVer,
         ComputeDataType>;
-
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
     template <typename ELay>
     static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
     {

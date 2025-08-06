@@ -234,6 +234,8 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         ComputeTypeB,
         PermuteA,
         PermuteB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)

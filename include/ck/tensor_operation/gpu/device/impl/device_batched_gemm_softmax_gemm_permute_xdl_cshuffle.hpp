@@ -451,6 +451,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         Transform::matrix_padder.PadN,
         MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
         D0sTransferSrcScalarPerVector>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // Argument
     // FIXME: constness

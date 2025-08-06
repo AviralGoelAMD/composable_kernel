@@ -306,6 +306,8 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         PipelineVer,
         ALDSType,
         BLDSType>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     template <typename UnderlyingBlockToCTileMap>
     struct OffsettedBlockToCTileMapMLoops

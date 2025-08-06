@@ -168,6 +168,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using CGridDesc_M_N = decltype(MakeDescriptor_M_N({1, 1}, {1, 1}));
 

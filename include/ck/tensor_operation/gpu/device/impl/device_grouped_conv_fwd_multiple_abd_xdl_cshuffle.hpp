@@ -541,6 +541,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CTranspose,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmCTransposeTemplateParameters>,
         GridwiseGemm>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass std::array with pointers.
     using APointers =

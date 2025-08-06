@@ -531,6 +531,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         ADataType,
         BDataType,
         DoElementwiseBeforeCShuffle>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // #undef GridwiseGemmV3TemplateParams
 
