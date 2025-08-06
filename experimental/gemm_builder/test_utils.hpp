@@ -2,6 +2,8 @@
 #include <hip/hip_runtime.h>
 #include <hip/hip_bf16.h>
 
+#include "run_utils.hpp"
+
 #include <algorithm>
 #include <iostream>
 #include <vector>
@@ -125,5 +127,72 @@ inline void FillUniformRandomBf16(void* data,
     FillUniformRandomKernel<<<grid, block, 0, stream>>>(
         static_cast<__hip_bfloat16*>(data), size, seed);
 }
+
+// Kernel to calculate the difference between two bf16 device vectors and store in f32 device vector
+__global__ void
+CalculateDiffKernel(const __hip_bfloat16* a, const __hip_bfloat16* b, float* diff, int size)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idx < size)
+    {
+        diff[idx] = static_cast<float>(a[idx]) - static_cast<float>(b[idx]);
+    }
+}
+
+class TensorDiff
+{
+    public:
+    TensorDiff(const void* a, const void* b, int M, int N) : a_(a), b_(b), M_(M), N_(N) {}
+
+    // Get the vector of differences.
+    const std::vector<float>& Diff() const { return diff_; }
+
+    // Returns the largest absolute difference.
+    float LargestDiff() const
+    {
+        return *std::max_element(
+            diff_.begin(), diff_.end(), [](float a, float b) { return std::abs(a) < std::abs(b); });
+    }
+
+    // Report information about the differences.
+    void Report() const
+    {
+        std::cout << "Largest difference: " << LargestDiff() << std::endl;
+        for(int m = 0; m < M_; ++m)
+        {
+            for(int n = 0; n < N_; ++n)
+            {
+                if(std::abs(diff_[m * N_ + n]) > 1e-3f)
+                {
+                    std::cout << "Difference at (" << m << ", " << n << "): " << diff_[m * N_ + n]
+                              << std::endl;
+                }
+            }
+        }
+    }
+
+    private:
+    std::vector<float> CalculateDiff()
+    {
+        auto diff_dev      = ck_tile::runtime::AllocDevMem<float>(M_ * N_);
+        int block          = 256;
+        int grid           = (M_ * N_ + block - 1) / block;
+        hipStream_t stream = hipStreamDefault;
+        CalculateDiffKernel<<<grid, block, 0, stream>>>(static_cast<const __hip_bfloat16*>(a_),
+                                                        static_cast<const __hip_bfloat16*>(b_),
+                                                        diff_dev.get(),
+                                                        M_ * N_);
+        ck_tile::runtime::CheckHipError(hipDeviceSynchronize());
+        std::vector<float> diff(M_ * N_);
+        ck_tile::runtime::CheckHipError(
+            hipMemcpy(diff.data(), diff_dev.get(), M_ * N_ * sizeof(float), hipMemcpyDeviceToHost));
+        return diff;
+    }
+    const void* a_;
+    const void* b_;
+    int M_;
+    int N_;
+    std::vector<float> diff_ = CalculateDiff();
+};
 
 } // namespace ck_tile::test

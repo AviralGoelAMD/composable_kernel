@@ -49,8 +49,8 @@ int main()
         auto a_dev = ckr::AllocDevMem<ck_tile::bf16_t>(M * K);
         auto b_dev = ckr::AllocDevMem<ck_tile::bf16_t>(K * N);
         auto c_dev = ckr::AllocDevMem<ck_tile::bf16_t>(M * N);
-        ckt::FillUniformRandomBf16(a_dev.get(), M * K);
-        ckt::FillUniformRandomBf16(b_dev.get(), K * N);
+        ckt::FillUniformRandomBf16(a_dev.get(), M * K, 1234);
+        ckt::FillUniformRandomBf16(b_dev.get(), K * N, 5678);
 
         auto kernel_args = example::Builder::KernelArgs{
             .as_ptr    = {a_dev.get()}, // Address of tensor A in device memory.
@@ -87,9 +87,16 @@ int main()
 
         // Validate the result.
         auto c_dev_check = ckr::AllocDevMem<ck_tile::bf16_t>(M * N);
-        ckt::FillUniformRandomBf16(c_dev_check.get(), M * N);
+        ckt::FillUniformRandomBf16(a_dev.get(), M * K, 1234);
+
         ckt::RunReferenceGemm(a_dev.get(), b_dev.get(), c_dev_check.get(), M, N, K, M, N, M);
         ckr::CheckHipError(hipDeviceSynchronize());
+        if(ckt::TensorDiff diff(c_dev.get(), c_dev_check.get(), M, N); diff.LargestDiff() > 1e-3f)
+        {
+            diff.Report();
+            throw std::runtime_error("GEMM result validation failed!");
+        }
+        std::cout << "GEMM result validation passed!" << std::endl;
     }
     catch(const std::exception& e)
     {
