@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -253,6 +253,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 
     using DeviceOp = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
     using ELayout  = HLayout;
+
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumDTensor                  = DsDataType::Size();
     static constexpr index_t LayernormHDstVectorSize     = PostShuffleScalarPerVector;

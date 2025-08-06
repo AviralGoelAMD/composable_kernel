@@ -96,83 +96,64 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfN compute_ptr_offset_of_n,
         const index_t KBatch)
 {
-#if defined(__gfx9__)
-    // offset base pointer for each work-group
-    const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
-    const index_t g_idx         = __builtin_amdgcn_readfirstlane(blockIdx.y);
-    const index_t n_idx         = __builtin_amdgcn_readfirstlane(blockIdx.z / KBatch);
-    const index_t k_idx         = __builtin_amdgcn_readfirstlane(blockIdx.z - n_idx * KBatch);
-
-    const long_index_t a_batch_offset =
-        CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx))
-                   : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
-    const long_index_t b_batch_offset =
-        CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx))
-                   : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
-    const long_index_t e_batch_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
-
-    const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
-
-    const long_index_t a_n_offset =
-        CTranspose ? 0 : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-    const long_index_t b_n_offset =
-        CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx)) : 0;
-
-    const long_index_t e_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    DsPointer p_ds_grid_grp;
-
-    static constexpr index_t NumDTensor = DsPointer::Size();
-
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
-
-    index_t left     = 0;
-    index_t right    = gemms_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_args_id >= gemm_kernel_args[group_id].BlockStart_ &&
-             block_args_id < gemm_kernel_args[group_id].BlockEnd_)) &&
-          left <= right)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        if(block_args_id < gemm_kernel_args[group_id].BlockStart_)
+        // offset base pointer for each work-group
+        const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t g_idx         = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx         = __builtin_amdgcn_readfirstlane(blockIdx.z / KBatch);
+        const index_t k_idx         = __builtin_amdgcn_readfirstlane(blockIdx.z - n_idx * KBatch);
+
+        const long_index_t a_batch_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
+        const long_index_t b_batch_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx))
+                       : amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx));
+        const long_index_t e_batch_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx));
+
+        const auto ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+
+        const long_index_t a_n_offset =
+            CTranspose ? 0 : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const long_index_t b_n_offset =
+            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx)) : 0;
+
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+        DsPointer p_ds_grid_grp;
+
+        static constexpr index_t NumDTensor = DsPointer::Size();
+
+        static_for<0, NumDTensor, 1>{}(
+            [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
+
+        index_t left     = 0;
+        index_t right    = gemms_count;
+        index_t group_id = index_t((left + right) / 2);
+        while((!(block_args_id >= gemm_kernel_args[group_id].BlockStart_ &&
+                 block_args_id < gemm_kernel_args[group_id].BlockEnd_)) &&
+              left <= right)
         {
-            right = group_id;
+            if(block_args_id < gemm_kernel_args[group_id].BlockStart_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
         }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
 
-    if constexpr(HasMainKBlockLoopInAllGemm || NoMainKBlockLoopInAllGemm)
-    {
-        GridwiseGemm::template Run<HasMainKBlockLoopInAllGemm, OutElementOp>(
-            p_a_grid + a_batch_offset + a_n_offset,
-            p_b_grid + b_batch_offset + b_n_offset,
-            p_ds_grid_grp,
-            p_e_grid + e_batch_offset + e_n_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            gemm_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
-            gemm_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
-            gemm_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-            gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            gemm_kernel_args[group_id].block_2_ctile_map_,
-            KBatch,
-            k_idx);
-    }
-    else
-    {
-        if(gemm_kernel_args[group_id].HasMainKBlockLoop_)
+        if constexpr(HasMainKBlockLoopInAllGemm || NoMainKBlockLoopInAllGemm)
         {
-            GridwiseGemm::template Run<true, OutElementOp>(
+            GridwiseGemm::template Run<HasMainKBlockLoopInAllGemm, OutElementOp>(
                 p_a_grid + a_batch_offset + a_n_offset,
                 p_b_grid + b_batch_offset + b_n_offset,
                 p_ds_grid_grp,
@@ -191,22 +172,44 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         }
         else
         {
-            GridwiseGemm::template Run<false, OutElementOp>(
-                p_a_grid + a_batch_offset + a_n_offset,
-                p_b_grid + b_batch_offset + b_n_offset,
-                p_ds_grid_grp,
-                p_e_grid + e_batch_offset + e_n_offset,
-                p_shared,
-                a_element_op,
-                b_element_op,
-                cde_element_op,
-                gemm_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
-                gemm_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
-                gemm_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-                gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-                gemm_kernel_args[group_id].block_2_ctile_map_,
-                KBatch,
-                k_idx);
+            if(gemm_kernel_args[group_id].HasMainKBlockLoop_)
+            {
+                GridwiseGemm::template Run<true, OutElementOp>(
+                    p_a_grid + a_batch_offset + a_n_offset,
+                    p_b_grid + b_batch_offset + b_n_offset,
+                    p_ds_grid_grp,
+                    p_e_grid + e_batch_offset + e_n_offset,
+                    p_shared,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    gemm_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
+                    gemm_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
+                    gemm_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    gemm_kernel_args[group_id].block_2_ctile_map_,
+                    KBatch,
+                    k_idx);
+            }
+            else
+            {
+                GridwiseGemm::template Run<false, OutElementOp>(
+                    p_a_grid + a_batch_offset + a_n_offset,
+                    p_b_grid + b_batch_offset + b_n_offset,
+                    p_ds_grid_grp,
+                    p_e_grid + e_batch_offset + e_n_offset,
+                    p_shared,
+                    a_element_op,
+                    b_element_op,
+                    cde_element_op,
+                    gemm_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
+                    gemm_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
+                    gemm_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    gemm_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                    gemm_kernel_args[group_id].block_2_ctile_map_,
+                    KBatch,
+                    k_idx);
+            }
         }
     }
 #else
@@ -316,6 +319,9 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             : 32;
 
     using DeviceOp = DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumDTensor          = DsDataType::Size();
     static constexpr GemmSpecialization GemmSpec = GemmSpecialization::MNKPadding;

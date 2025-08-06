@@ -57,33 +57,36 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
         [[maybe_unused]] const index_t num_k_per_block)
 {
-#if defined(__gfx9__)
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
-    const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t e_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+        const long_index_t a_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+        const long_index_t b_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+        const long_index_t e_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
-                               BGridDesc_BK0_N_K1,
-                               CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                               HasMainKBlockLoop,
-                               CGlobalMemoryDataOperation,
-                               TailNum>(karg.p_a_grid + a_batch_offset,
-                                        karg.p_b_grid + b_batch_offset,
-                                        karg.p_c_grid + e_batch_offset,
-                                        p_shared,
-                                        karg,
-                                        a_grid_desc_ak0_m_ak1,
-                                        b_grid_desc_bk0_n_bk1,
-                                        c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                        k_idx);
+        GridwiseGemm::template Run<AGridDesc_AK0_M_K1,
+                                   BGridDesc_BK0_N_K1,
+                                   CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                   HasMainKBlockLoop,
+                                   CGlobalMemoryDataOperation,
+                                   TailNum>(karg.p_a_grid + a_batch_offset,
+                                            karg.p_b_grid + b_batch_offset,
+                                            karg.p_c_grid + e_batch_offset,
+                                            p_shared,
+                                            karg,
+                                            a_grid_desc_ak0_m_ak1,
+                                            b_grid_desc_bk0_n_bk1,
+                                            c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                            k_idx);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -112,38 +115,41 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         [[maybe_unused]] const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
         [[maybe_unused]] const index_t num_k_per_block)
 {
-#if defined(__gfx9__)
-    // offset base pointer for each work-group
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
-    const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        // offset base pointer for each work-group
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.z * NumGroupsToMerge);
+        const index_t k_idx = __builtin_amdgcn_readfirstlane(blockIdx.y * num_k_per_block);
 
-    const long_index_t a_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t e_batch_offset = amd_wave_read_first_lane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+        const long_index_t a_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+        const long_index_t b_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+        const long_index_t e_batch_offset = amd_wave_read_first_lane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
 
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        // Pass two lds pointer is the key to tell compiler that ds_read/write
+        // operate on different lds chunk at same time without order dependecy
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
-                                    BGridDesc_BK0_N_K1,
-                                    CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                                    HasMainKBlockLoop,
-                                    CGlobalMemoryDataOperation,
-                                    TailNum>(karg.p_a_grid + a_batch_offset,
-                                             karg.p_b_grid + b_batch_offset,
-                                             karg.p_c_grid + e_batch_offset,
-                                             p_shared_0,
-                                             p_shared_1,
-                                             karg,
-                                             a_grid_desc_ak0_m_ak1,
-                                             b_grid_desc_bk0_n_bk1,
-                                             c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                             k_idx);
+        GridwiseGemm::template Run_2Lds<AGridDesc_AK0_M_K1,
+                                        BGridDesc_BK0_N_K1,
+                                        CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                                        HasMainKBlockLoop,
+                                        CGlobalMemoryDataOperation,
+                                        TailNum>(karg.p_a_grid + a_batch_offset,
+                                                 karg.p_b_grid + b_batch_offset,
+                                                 karg.p_c_grid + e_batch_offset,
+                                                 p_shared_0,
+                                                 p_shared_1,
+                                                 karg,
+                                                 a_grid_desc_ak0_m_ak1,
+                                                 b_grid_desc_bk0_n_bk1,
+                                                 c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                 k_idx);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -214,6 +220,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
     static_assert(is_same_v<OutElementwiseOperation, element_wise::PassThrough>);
 
     using DeviceOp = DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     using ADataType = OutDataType;
     using BDataType = InDataType;

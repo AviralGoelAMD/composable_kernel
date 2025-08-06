@@ -41,39 +41,42 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                    const BElementwiseOperation b_element_op,
                                    const CElementwiseOperation c_element_op)
 {
-#if defined(__gfx9__)
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
-    __shared__ uint8_t p_shared[shared_size];
-
-    const index_t block_id = get_block_1d_id();
-    const auto gemm_desc_ptr =
-        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
-
-    index_t left     = 0;
-    index_t right    = group_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
-             block_id < gemm_desc_ptr[group_id].block_end_)) &&
-          left <= right)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        if(block_id < gemm_desc_ptr[group_id].block_start_)
-        {
-            right = group_id;
-        }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
+        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+        __shared__ uint8_t p_shared[shared_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
-        gemm_desc_ptr[group_id].karg_,
-        static_cast<void*>(p_shared),
-        gemm_desc_ptr[group_id].block_2_ctile_map_,
-        a_element_op,
-        b_element_op,
-        c_element_op);
+        const index_t block_id   = get_block_1d_id();
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+
+        index_t left     = 0;
+        index_t right    = group_count;
+        index_t group_id = index_t((left + right) / 2);
+        while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
+                 block_id < gemm_desc_ptr[group_id].block_end_)) &&
+              left <= right)
+        {
+            if(block_id < gemm_desc_ptr[group_id].block_start_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
+        }
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
+            gemm_desc_ptr[group_id].karg_,
+            static_cast<void*>(p_shared),
+            gemm_desc_ptr[group_id].block_2_ctile_map_,
+            a_element_op,
+            b_element_op,
+            c_element_op);
+    }
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
@@ -144,6 +147,9 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                                                                            BElementwiseOperation,
                                                                            CDEElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto I0 = Number<0>{};

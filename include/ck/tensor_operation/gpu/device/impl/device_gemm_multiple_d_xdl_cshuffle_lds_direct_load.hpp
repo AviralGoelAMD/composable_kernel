@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -74,6 +74,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                                  BElementwiseOperation,
                                  CDEElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr auto I1            = Number<1>{};
     static constexpr index_t NumDTensor = DsDataType::Size();
 

@@ -164,6 +164,10 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
                                                          BElementwiseOperation,
                                                          CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     // GridwiseGemm
     using GridwiseGemm = conditional_t< //
         !is_same_v<BLayout, tensor_layout::gemm::MFMA>,

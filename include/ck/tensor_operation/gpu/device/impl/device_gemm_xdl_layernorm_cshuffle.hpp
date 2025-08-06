@@ -81,6 +81,10 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
 {
     using DeviceOp = DeviceGemmLayerNorm_Xdl_CShuffle;
 
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};

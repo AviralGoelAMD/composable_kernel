@@ -77,6 +77,10 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
                                                                               BElementwiseOperation,
                                                                               CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v3_b_preshuffle<
         ALayout,

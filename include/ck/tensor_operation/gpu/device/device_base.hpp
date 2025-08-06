@@ -46,6 +46,97 @@ namespace device {
 #define REGISTER_EXTRA_PRINTING_METHODS GET_OBJECT_NAME_IMLP GET_TEMPLATE_INFO_IMPL
 #endif
 
+#define GET_NXDL_PER_WAVE_IMPL                                                 \
+    template <bool IsWave64>                                                   \
+    static constexpr auto GetNXdlPerWave()                                     \
+    {                                                                          \
+        constexpr index_t Waves  = IsWave64 ? BlockSize / 64 : BlockSize / 32; \
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXDL);        \
+        static_assert(MWaves > 0);                                             \
+                                                                               \
+        constexpr index_t NWaves = Waves / MWaves;                             \
+        if constexpr(NWaves == 0)                                              \
+        {                                                                      \
+            return 0;                                                          \
+        }                                                                      \
+        else                                                                   \
+        {                                                                      \
+            if constexpr(NPerBlock % (NPerXDL * NWaves) == 0)                  \
+            {                                                                  \
+                return NPerBlock / (NWaves * NPerXDL);                         \
+            }                                                                  \
+            else                                                               \
+            {                                                                  \
+                return 0;                                                      \
+            }                                                                  \
+        }                                                                      \
+    }
+
+#define IS_VALID_COMPILATION_PARAMETER_IMPL                                                       \
+    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation>                               \
+    __device__ static bool constexpr IsValidCompilationParameter()                                \
+    {                                                                                             \
+        #if defined(__gfx11__) || defined(__gfx12__) if constexpr(MPerXdl != 16 || NPerXdl != 16) \
+        {                                                                                         \
+            return false;                                                                         \
+        }                                                                                         \
+        #endif                                                                                    \
+                                                                                                  \
+            #if defined(__gfx11__) constexpr bool SupportMemOp =                                  \
+                CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;                     \
+        #else constexpr bool SupportMemOp =                                                       \
+            sizeof(CDataType) >= 2 ||                                                             \
+            (CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set);                       \
+        #endif if constexpr(SupportMemOp == false) { return false; }                              \
+                                                                                                  \
+        if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)                                          \
+        {                                                                                         \
+            constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);                       \
+            constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);                       \
+            if constexpr(MWaves > 0 && NWaves > 0)                                                \
+            {                                                                                     \
+                constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);                       \
+                if constexpr(WaveSize == get_warp_size())                                         \
+                {                                                                                 \
+                    return true;                                                                  \
+                }                                                                                 \
+                else                                                                              \
+                {                                                                                 \
+                    return false;                                                                 \
+                }                                                                                 \
+            }                                                                                     \
+            else                                                                                  \
+            {                                                                                     \
+                return false;                                                                     \
+            }                                                                                     \
+        }                                                                                         \
+        else                                                                                      \
+        {                                                                                         \
+            return false;                                                                         \
+        }                                                                                         \
+    }
+
+#define CHECK_XDL_LAYOUT                                                       \
+    if constexpr((MPerXdl * MXdlPerWave) == 0 || (NXdlPerWave * NPerXdl) == 0) \
+    {                                                                          \
+        return false;                                                          \
+    }                                                                          \
+    else                                                                       \
+    {                                                                          \
+        if constexpr((MPerBlock % (MPerXdl * MXdlPerWave) != 0) ||             \
+                     (NPerBlock % (NXdlPerWave * NPerXdl) != 0))               \
+        {                                                                      \
+            return false;                                                      \
+        }                                                                      \
+        else                                                                   \
+        {                                                                      \
+            if(BlockwiseGemmPipe::WaveSize != get_warp_size())                 \
+            {                                                                  \
+                return false;                                                  \
+            }                                                                  \
+        }                                                                      \
+    }
+
 #ifndef CK_CODE_GEN_RTC
 struct BaseArgument
 {

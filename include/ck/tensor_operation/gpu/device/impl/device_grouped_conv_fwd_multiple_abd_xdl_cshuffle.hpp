@@ -101,106 +101,111 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffsetOfG compute_ptr_offset_of_groups,
         const ComputePtrOffsetOfN compute_ptr_offset_of_n)
 {
-#if defined(__gfx9__)
-
-    // offset base pointer for each work-group
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
-    const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
-
-    const long_index_t e_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
-    const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
-    const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
-
-    const long_index_t e_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    DsPointer p_ds_grid_grp;
-
-    static constexpr index_t NumDTensor =
-        DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
-
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i]; });
-
-    if constexpr(isMultiA || isMultiB)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        AsPointer p_as_grid_grp;
-        BsPointer p_bs_grid_grp;
+        // offset base pointer for each work-group
+        const index_t g_idx = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const auto& as_group_offset = compute_ptr_offset_of_groups.GetAsPtrOffset(g_idx);
+        const long_index_t e_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
+        const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+        const auto& ds_n_offset     = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
 
-        // compute_ptr_offset_of_n_ not need BatchStrideB so
-        // in case of MultiA is false but isMultiB is true
-        // BatchStrideA_ is not tuple.
-        if constexpr(isMultiA)
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+        DsPointer p_ds_grid_grp;
+
+        static constexpr index_t NumDTensor =
+            DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
+
+        static_for<0, NumDTensor, 1>{}(
+            [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_n_offset[i] + ds_group_offset[i]; });
+
+        if constexpr(isMultiA || isMultiB)
         {
-            const auto& as_n_offset = compute_ptr_offset_of_n.GetAsPtrOffset(n_idx);
+            AsPointer p_as_grid_grp;
+            BsPointer p_bs_grid_grp;
 
-            static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
-            static_for<0, NumATensor, 1>{}([&](auto i) {
-                p_as_grid_grp(i) = p_as_grid[i] + as_group_offset[i] + as_n_offset[i];
-            });
+            const auto& as_group_offset = compute_ptr_offset_of_groups.GetAsPtrOffset(g_idx);
+
+            // compute_ptr_offset_of_n_ not need BatchStrideB so
+            // in case of MultiA is false but isMultiB is true
+            // BatchStrideA_ is not tuple.
+            if constexpr(isMultiA)
+            {
+                const auto& as_n_offset = compute_ptr_offset_of_n.GetAsPtrOffset(n_idx);
+
+                static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
+                static_for<0, NumATensor, 1>{}([&](auto i) {
+                    p_as_grid_grp(i) = p_as_grid[i] + as_group_offset[i] + as_n_offset[i];
+                });
+            }
+            else
+            {
+                const long_index_t a_n_offset = compute_ptr_offset_of_n.GetAPtrOffset(n_idx);
+                static_for<0, 1, 1>{}([&](auto i) {
+                    p_as_grid_grp(i) = p_as_grid[i] + as_group_offset[i] + a_n_offset;
+                });
+            }
+
+            const auto& bs_group_offset = compute_ptr_offset_of_groups.GetBsPtrOffset(g_idx);
+
+            static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
+            static_for<0, NumBTensor, 1>{}(
+                [&](auto i) { p_bs_grid_grp(i) = p_bs_grid[i] + bs_group_offset[i]; });
+
+            GridwiseGemm::template Run<HasMainKBlockLoop>(
+                p_as_grid_grp,
+                p_bs_grid_grp,
+                p_ds_grid_grp,
+                p_e_grid + e_group_offset + e_n_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                a_grid_desc_k0_m_k1,
+                b_grid_desc_k0_n_k1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                block_2_ctile_map);
         }
         else
         {
-            const long_index_t a_n_offset = compute_ptr_offset_of_n.GetAPtrOffset(n_idx);
-            static_for<0, 1, 1>{}(
-                [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_group_offset[i] + a_n_offset; });
+            const long_index_t b_group_offset =
+                CTranspose
+                    ? amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx))
+                    : amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
+            const long_index_t a_group_offset =
+                CTranspose
+                    ? amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx))
+                    : amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
+            const long_index_t b_n_offset =
+                CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx))
+                           : 0;
+            const long_index_t a_n_offset =
+                CTranspose ? 0
+                           : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+
+            GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+                p_as_grid + a_group_offset + a_n_offset,
+                p_bs_grid + b_group_offset + b_n_offset,
+                p_ds_grid_grp,
+                p_e_grid + e_group_offset + e_n_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                a_grid_desc_k0_m_k1,
+                b_grid_desc_k0_n_k1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                block_2_ctile_map);
         }
-
-        const auto& bs_group_offset = compute_ptr_offset_of_groups.GetBsPtrOffset(g_idx);
-
-        static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
-        static_for<0, NumBTensor, 1>{}(
-            [&](auto i) { p_bs_grid_grp(i) = p_bs_grid[i] + bs_group_offset[i]; });
-
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
-            p_as_grid_grp,
-            p_bs_grid_grp,
-            p_ds_grid_grp,
-            p_e_grid + e_group_offset + e_n_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            a_grid_desc_k0_m_k1,
-            b_grid_desc_k0_n_k1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            block_2_ctile_map);
-    }
-    else
-    {
-        const long_index_t b_group_offset =
-            CTranspose
-                ? amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx))
-                : amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
-        const long_index_t a_group_offset =
-            CTranspose
-                ? amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx))
-                : amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-        const long_index_t b_n_offset =
-            CTranspose ? amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx)) : 0;
-        const long_index_t a_n_offset =
-            CTranspose ? 0 : amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-
-        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
-            p_as_grid + a_group_offset + a_n_offset,
-            p_bs_grid + b_group_offset + b_n_offset,
-            p_ds_grid_grp,
-            p_e_grid + e_group_offset + e_n_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            a_grid_desc_k0_m_k1,
-            b_grid_desc_k0_n_k1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            block_2_ctile_map);
     }
 #else
     ignore = p_as_grid;
@@ -316,6 +321,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static_assert(NumGroupsToMerge >= 1);
 

@@ -37,47 +37,50 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const BElementwiseOperation b_element_op,
         const CDEElementwiseOperation cde_element_op)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    const index_t block_id = get_block_1d_id();
-
-    const auto contraction_arg_ptr = reinterpret_cast<const ContractionMultiDKernelArg*>(
-        cast_pointer_to_generic_address_space(contraction_args));
-
-    index_t left     = 0;
-    index_t right    = group_count;
-    index_t group_id = index_t((left + right) / 2);
-
-    while((!(block_id >= contraction_arg_ptr[group_id].block_start_ &&
-             block_id < contraction_arg_ptr[group_id].block_end_)) &&
-          left <= right)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        if(block_id < contraction_arg_ptr[group_id].block_start_)
-        {
-            right = group_id;
-        }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
-    }
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
-        contraction_arg_ptr[group_id].p_a_grid_,
-        contraction_arg_ptr[group_id].p_b_grid_,
-        contraction_arg_ptr[group_id].p_ds_grid_,
-        contraction_arg_ptr[group_id].p_e_grid_,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        cde_element_op,
-        contraction_arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
-        contraction_arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
-        contraction_arg_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-        contraction_arg_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        contraction_arg_ptr[group_id].block_2_etile_map_);
+        const index_t block_id = get_block_1d_id();
+
+        const auto contraction_arg_ptr = reinterpret_cast<const ContractionMultiDKernelArg*>(
+            cast_pointer_to_generic_address_space(contraction_args));
+
+        index_t left     = 0;
+        index_t right    = group_count;
+        index_t group_id = index_t((left + right) / 2);
+
+        while((!(block_id >= contraction_arg_ptr[group_id].block_start_ &&
+                 block_id < contraction_arg_ptr[group_id].block_end_)) &&
+              left <= right)
+        {
+            if(block_id < contraction_arg_ptr[group_id].block_start_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
+        }
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+            contraction_arg_ptr[group_id].p_a_grid_,
+            contraction_arg_ptr[group_id].p_b_grid_,
+            contraction_arg_ptr[group_id].p_ds_grid_,
+            contraction_arg_ptr[group_id].p_e_grid_,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            cde_element_op,
+            contraction_arg_ptr[group_id].a_grid_desc_ak0_m_ak1_,
+            contraction_arg_ptr[group_id].b_grid_desc_bk0_n_bk1_,
+            contraction_arg_ptr[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            contraction_arg_ptr[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            contraction_arg_ptr[group_id].block_2_etile_map_);
+    }
 #else
     ignore = contraction_args;
     ignore = group_count;
@@ -165,6 +168,9 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
 {
     using DeviceOp = DeviceGroupedContractionMultipleD_Xdl_CShuffle;
 
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto I0 = Number<0>{};

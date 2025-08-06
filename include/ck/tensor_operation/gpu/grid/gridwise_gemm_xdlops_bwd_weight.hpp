@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -166,20 +166,24 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                   const CElementwiseOperation c_element_op,
                                   const CBlockClusterAdaptor c_block_cluster_adaptor)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_b_k0_m_k1_grid_desc,
-                                                  b_b_k0_n_k1_grid_desc,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  c_element_op,
-                                                  c_block_cluster_adaptor);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                      p_b_grid,
+                                                      p_c_grid,
+                                                      p_shared,
+                                                      a_b_k0_m_k1_grid_desc,
+                                                      b_b_k0_n_k1_grid_desc,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      c_element_op,
+                                                      c_block_cluster_adaptor);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;

@@ -58,6 +58,9 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
     using DeviceOp                 = DeviceGroupedConvBwdWeight_Explicit_Xdl;
     using TwoStageIntermediateType = typename DeviceGemmV3Op::CDataType_;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t ElementwiseBlockSize = 256;
     static constexpr index_t ElemsPerBlock        = 256;

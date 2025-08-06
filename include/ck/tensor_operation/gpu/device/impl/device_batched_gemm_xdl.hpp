@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -52,36 +52,40 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_batched_gemm_xdlops_v2r3(const typename DeviceOp::Argument karg)
 {
-#if defined(__gfx9__)
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / karg.Batch);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        const index_t num_blocks_per_batch =
+            __builtin_amdgcn_readfirstlane(get_grid_size() / karg.Batch);
+        const index_t g_idx =
+            __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
+        const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+        const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+        const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx)));
 
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const auto a_grid_desc_k0_m_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
-    const auto b_grid_desc_k0_n_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
-            karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
-    const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
-        karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
+        const auto a_grid_desc_k0_m_k1 =
+            amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
+                karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
+        const auto b_grid_desc_k0_n_k1 =
+            amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
+                karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
+        const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
+            karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid + a_batch_offset,
-                                                  karg.p_b_grid + b_batch_offset,
-                                                  karg.p_c_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m_n);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid + a_batch_offset,
+                                                      karg.p_b_grid + b_batch_offset,
+                                                      karg.p_c_grid + c_batch_offset,
+                                                      p_shared,
+                                                      a_grid_desc_k0_m_k1,
+                                                      b_grid_desc_k0_n_k1,
+                                                      c_grid_desc_m_n);
+    }
 #else
     ignore = karg;
 #endif
@@ -135,6 +139,10 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                                                        BElementwiseOperation,
                                                        CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};

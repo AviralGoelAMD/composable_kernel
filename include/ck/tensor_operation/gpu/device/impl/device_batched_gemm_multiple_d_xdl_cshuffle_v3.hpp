@@ -37,35 +37,38 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t g_idx = blockIdx.z % karg.Batch;
-    const index_t k_idx = blockIdx.z / karg.Batch;
+        const index_t g_idx = blockIdx.z % karg.Batch;
+        const index_t k_idx = blockIdx.z / karg.Batch;
 
-    const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
-    const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
-    const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
-    const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
+        const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+        const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+        const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+        const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
 
-    // populate pointer, desc for Ds
-    static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
-        // D pointer
-        karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
-    });
+        // populate pointer, desc for Ds
+        static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+            // D pointer
+            karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
+        });
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid + c_batch_offset,
-        p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
+            karg.p_ds_grid,
+            karg.p_c_grid + c_batch_offset,
+            p_shared,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.c_element_op);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -83,39 +86,42 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
     kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
 {
-#if defined(__gfx9__)
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        // Pass two lds pointer is the key to tell compiler that ds_read/write
+        // operate on different lds chunk at same time without order dependecy
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t g_idx = blockIdx.z % karg.Batch;
-    const index_t k_idx = blockIdx.z / karg.Batch;
+        const index_t g_idx = blockIdx.z % karg.Batch;
+        const index_t k_idx = blockIdx.z / karg.Batch;
 
-    const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
-    const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
-    const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
-    const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
+        const auto a_batch_offset  = karg.compute_ptr_offset_of_batch.GetAPtrOffset(g_idx);
+        const auto b_batch_offset  = karg.compute_ptr_offset_of_batch.GetBPtrOffset(g_idx);
+        const auto ds_batch_offset = karg.compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
+        const auto c_batch_offset  = karg.compute_ptr_offset_of_batch.GetCPtrOffset(g_idx);
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, k_idx);
 
-    // populate pointer, desc for Ds
-    static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
-        // D pointer
-        karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
-    });
+        // populate pointer, desc for Ds
+        static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+            // D pointer
+            karg.p_ds_grid(i) = karg.p_ds_grid(i) + ds_batch_offset[i];
+        });
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
-        karg.p_ds_grid,
-        karg.p_c_grid + c_batch_offset,
-        p_shared_0,
-        p_shared_1,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
+            karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
+            karg.p_ds_grid,
+            karg.p_c_grid + c_batch_offset,
+            p_shared_0,
+            p_shared_1,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.c_element_op);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -185,6 +191,10 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                                        BElementwiseOperation,
                                        CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr index_t NumDTensor            = DsDataType::Size();
     using CDEShuffleBlockTransferScalarPerVectors_ = CDEShuffleBlockTransferScalarPerVectors;
     using CDataType_                               = CDataType;

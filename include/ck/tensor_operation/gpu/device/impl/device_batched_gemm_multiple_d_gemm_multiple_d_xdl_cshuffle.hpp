@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -69,52 +69,57 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const index_t batch_count,
         const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        const index_t num_blocks_per_batch =
+            __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+        const index_t g_idx =
+            __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-    const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
-    const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(g_idx)));
-    const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
-    const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
+        const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetABasePtr(g_idx)));
+        const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetBBasePtr(g_idx)));
+        const long_index_t b1_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetB1BasePtr(g_idx)));
+        const long_index_t c_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_base_ptr_of_batch.GetCBasePtr(g_idx)));
 
-    static_for<0, p_d0s_grid.Size(), 1>{}([&](auto In) {
-        const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx, In)));
-        p_d0s_grid(In) = p_d0s_grid(In) + d0_batch_offset;
-    });
+        static_for<0, p_d0s_grid.Size(), 1>{}([&](auto In) {
+            const long_index_t d0_batch_offset = __builtin_amdgcn_readfirstlane(
+                static_cast<long_index_t>(compute_base_ptr_of_batch.GetD0BasePtr(g_idx, In)));
+            p_d0s_grid(In) = p_d0s_grid(In) + d0_batch_offset;
+        });
 
-    static_for<0, p_d1s_grid.Size(), 1>{}([&](auto In) {
-        const long_index_t d1_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_base_ptr_of_batch.GetD1BasePtr(g_idx, In)));
-        p_d1s_grid(In) = p_d1s_grid(In) + d1_batch_offset;
-    });
+        static_for<0, p_d1s_grid.Size(), 1>{}([&](auto In) {
+            const long_index_t d1_batch_offset = __builtin_amdgcn_readfirstlane(
+                static_cast<long_index_t>(compute_base_ptr_of_batch.GetD1BasePtr(g_idx, In)));
+            p_d1s_grid(In) = p_d1s_grid(In) + d1_batch_offset;
+        });
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a0_grid + a_batch_offset,
-                                                  p_b0_grid + b_batch_offset,
-                                                  p_d0s_grid,
-                                                  p_b1_grid + b1_batch_offset,
-                                                  p_d1s_grid,
-                                                  p_e1_grid + c_batch_offset,
-                                                  p_shared,
-                                                  a0_element_op,
-                                                  b0_element_op,
-                                                  cde0_element_op,
-                                                  b1_element_op,
-                                                  cde1_element_op,
-                                                  a0_grid_desc_ak0_m_ak1,
-                                                  b0_grid_desc_bk0_n_bk1,
-                                                  d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
-                                                  b1_grid_desc_bk0_n_bk1,
-                                                  d1s_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  e1_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_e1tile_map);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(
+            p_a0_grid + a_batch_offset,
+            p_b0_grid + b_batch_offset,
+            p_d0s_grid,
+            p_b1_grid + b1_batch_offset,
+            p_d1s_grid,
+            p_e1_grid + c_batch_offset,
+            p_shared,
+            a0_element_op,
+            b0_element_op,
+            cde0_element_op,
+            b1_element_op,
+            cde1_element_op,
+            a0_grid_desc_ak0_m_ak1,
+            b0_grid_desc_bk0_n_bk1,
+            d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+            b1_grid_desc_bk0_n_bk1,
+            d1s_grid_desc_mblock_mperblock_nblock_nperblock,
+            e1_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_e1tile_map);
+    }
 #else
     ignore = p_a0_grid;
     ignore = p_b0_grid;
@@ -230,6 +235,10 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                                      CDE1ElementwiseOperation>
 {
     using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
+
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();

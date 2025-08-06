@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -44,20 +44,24 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const CElementwiseOperation c_element_op,
         const Block2CTileMap block_2_ctile_map)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
-                                                   p_b_grid,
-                                                   p_c_grid,
-                                                   p_shared,
-                                                   a_grid_desc_k0_m_k1,
-                                                   b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                   c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
-                                                   a_element_op,
-                                                   b_element_op,
-                                                   c_element_op,
-                                                   block_2_ctile_map);
+        GridwiseGemm::template Run<HasMainK0BlockLoop>(p_a_grid,
+                                                       p_b_grid,
+                                                       p_c_grid,
+                                                       p_shared,
+                                                       a_grid_desc_k0_m_k1,
+                                                       b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
+                                                       c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                       a_element_op,
+                                                       b_element_op,
+                                                       c_element_op,
+                                                       block_2_ctile_map);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;

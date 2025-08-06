@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,122 +50,125 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                      const BElementwiseOperation b_element_op,
                                      const CDEElementwiseOperation c_element_op)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    const index_t block_id = get_block_1d_id();
-
-    const auto gemm_desc_ptr =
-        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
-
-    const index_t group_id = block_id / grid_size_grp;
-
-    if(group_id >= group_count)
-        return;
-
-    const index_t M = gemm_desc_ptr[group_id].M;
-    const index_t N = gemm_desc_ptr[group_id].N;
-    const index_t K = gemm_desc_ptr[group_id].K;
-
-    if(M == 0 || N == 0 || K == 0)
-        return;
-
-    const auto StrideA  = gemm_desc_ptr[group_id].StrideA;
-    const auto StrideB  = gemm_desc_ptr[group_id].StrideB;
-    const auto StrideDs = gemm_desc_ptr[group_id].StrideDs;
-    const auto StrideE  = gemm_desc_ptr[group_id].StrideE;
-
-    const auto e_grid_desc_m_n =
-        GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
-
-    const index_t BlockStart = group_id * grid_size_grp;
-
-    const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n, KBatch};
-
-    const auto local_grid_size = local_b2e_tile_map.CalculateGridSize(e_grid_desc_m_n);
-
-    constexpr auto NumDTensor = DsDataType::Size();
-
-    using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
-
-    DsGridPointer p_ds_grid_;
-
-    static_for<0, NumDTensor, 1>{}([&](auto i) {
-        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
-        // D pointer
-        p_ds_grid_(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
-    });
-
-    index_t id_off   = 0;
-    index_t id_local = get_block_1d_id() - BlockStart;
-
-    const index_t mn_blocks = local_grid_size / KBatch;
-
-    while(id_local < local_grid_size)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        const auto block_2_etile_map =
-            GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        if constexpr(Zeroing)
+        const index_t block_id = get_block_1d_id();
+
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(
+            cast_pointer_to_generic_address_space(gemm_descs_const));
+
+        const index_t group_id = block_id / grid_size_grp;
+
+        if(group_id >= group_count)
+            return;
+
+        const index_t M = gemm_desc_ptr[group_id].M;
+        const index_t N = gemm_desc_ptr[group_id].N;
+        const index_t K = gemm_desc_ptr[group_id].K;
+
+        if(M == 0 || N == 0 || K == 0)
+            return;
+
+        const auto StrideA  = gemm_desc_ptr[group_id].StrideA;
+        const auto StrideB  = gemm_desc_ptr[group_id].StrideB;
+        const auto StrideDs = gemm_desc_ptr[group_id].StrideDs;
+        const auto StrideE  = gemm_desc_ptr[group_id].StrideE;
+
+        const auto e_grid_desc_m_n =
+            GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(M, N, StrideE);
+
+        const index_t BlockStart = group_id * grid_size_grp;
+
+        const auto local_b2e_tile_map = Block2ETileMap{e_grid_desc_m_n, KBatch};
+
+        const auto local_grid_size = local_b2e_tile_map.CalculateGridSize(e_grid_desc_m_n);
+
+        constexpr auto NumDTensor = DsDataType::Size();
+
+        using DsGridPointer = decltype(GridwiseGemm::MakeDsGridPointer());
+
+        DsGridPointer p_ds_grid_;
+
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            // D pointer
+            p_ds_grid_(i) = static_cast<const DDataType*>(gemm_desc_ptr[group_id].p_ds_grid[i]);
+        });
+
+        index_t id_off   = 0;
+        index_t id_local = get_block_1d_id() - BlockStart;
+
+        const index_t mn_blocks = local_grid_size / KBatch;
+
+        while(id_local < local_grid_size)
         {
-            auto barrier_count_finished =
-                barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
-            GridwiseGemm::template RunWithZeroing<HasMainKBlockLoop,
-                                                  EGlobalMemoryDataOperation,
-                                                  GemmSpec,
-                                                  ALayout,
-                                                  BLayout,
-                                                  DsLayout,
-                                                  ELayout>(gemm_desc_ptr[group_id].p_a_grid,
-                                                           gemm_desc_ptr[group_id].p_b_grid,
-                                                           p_ds_grid_,
-                                                           gemm_desc_ptr[group_id].p_e_grid,
-                                                           p_shared,
-                                                           barrier_count_finished,
-                                                           a_element_op,
-                                                           b_element_op,
-                                                           c_element_op,
-                                                           M,
-                                                           N,
-                                                           K,
-                                                           StrideA,
-                                                           StrideB,
-                                                           StrideDs,
-                                                           StrideE,
-                                                           KBatch,
-                                                           block_2_etile_map);
-        }
-        else
-        {
+            const auto block_2_etile_map =
+                GroupedGemmBlock2ETileMap(local_b2e_tile_map, BlockStart, id_off);
 
-            GridwiseGemm::template Run<HasMainKBlockLoop,
-                                       EGlobalMemoryDataOperation,
-                                       GemmSpec,
-                                       ALayout,
-                                       BLayout,
-                                       DsLayout,
-                                       ELayout>(gemm_desc_ptr[group_id].p_a_grid,
-                                                gemm_desc_ptr[group_id].p_b_grid,
-                                                p_ds_grid_,
-                                                gemm_desc_ptr[group_id].p_e_grid,
-                                                p_shared,
-                                                nullptr,
-                                                a_element_op,
-                                                b_element_op,
-                                                c_element_op,
-                                                M,
-                                                N,
-                                                K,
-                                                StrideA,
-                                                StrideB,
-                                                StrideDs,
-                                                StrideE,
-                                                KBatch,
-                                                block_2_etile_map);
-        }
+            if constexpr(Zeroing)
+            {
+                auto barrier_count_finished =
+                    barrier_count + group_id * barrier_size_grp + id_local % mn_blocks;
+                GridwiseGemm::template RunWithZeroing<HasMainKBlockLoop,
+                                                      EGlobalMemoryDataOperation,
+                                                      GemmSpec,
+                                                      ALayout,
+                                                      BLayout,
+                                                      DsLayout,
+                                                      ELayout>(gemm_desc_ptr[group_id].p_a_grid,
+                                                               gemm_desc_ptr[group_id].p_b_grid,
+                                                               p_ds_grid_,
+                                                               gemm_desc_ptr[group_id].p_e_grid,
+                                                               p_shared,
+                                                               barrier_count_finished,
+                                                               a_element_op,
+                                                               b_element_op,
+                                                               c_element_op,
+                                                               M,
+                                                               N,
+                                                               K,
+                                                               StrideA,
+                                                               StrideB,
+                                                               StrideDs,
+                                                               StrideE,
+                                                               KBatch,
+                                                               block_2_etile_map);
+            }
+            else
+            {
 
-        id_off += grid_size_grp;
-        id_local += grid_size_grp;
+                GridwiseGemm::template Run<HasMainKBlockLoop,
+                                           EGlobalMemoryDataOperation,
+                                           GemmSpec,
+                                           ALayout,
+                                           BLayout,
+                                           DsLayout,
+                                           ELayout>(gemm_desc_ptr[group_id].p_a_grid,
+                                                    gemm_desc_ptr[group_id].p_b_grid,
+                                                    p_ds_grid_,
+                                                    gemm_desc_ptr[group_id].p_e_grid,
+                                                    p_shared,
+                                                    nullptr,
+                                                    a_element_op,
+                                                    b_element_op,
+                                                    c_element_op,
+                                                    M,
+                                                    N,
+                                                    K,
+                                                    StrideA,
+                                                    StrideB,
+                                                    StrideDs,
+                                                    StrideE,
+                                                    KBatch,
+                                                    block_2_etile_map);
+            }
+
+            id_off += grid_size_grp;
+            id_local += grid_size_grp;
+        }
     }
 #else
     ignore = gemm_descs_const;
@@ -241,6 +244,9 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                                                                         CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedGemm_Xdl_Fixed_NK;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 

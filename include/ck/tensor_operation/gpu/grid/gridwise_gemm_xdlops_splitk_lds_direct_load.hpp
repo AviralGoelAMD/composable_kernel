@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,13 +38,16 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                               const BElementwiseOperation b_element_op,
                                               const CElementwiseOperation c_element_op)
 {
-#if defined(__gfx9__)
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
-    __shared__ uint8_t p_shared[shared_size];
+        __shared__ uint8_t p_shared[shared_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
-        karg, static_cast<void*>(p_shared), b2c_map, a_element_op, b_element_op, c_element_op);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
+            karg, static_cast<void*>(p_shared), b2c_map, a_element_op, b_element_op, c_element_op);
+    }
 #else
     ignore = karg;
     ignore = b2c_map;

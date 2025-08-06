@@ -80,6 +80,10 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
 {
     using DeviceOp = DeviceConvNdBwdDataNwcKxcNwk_Xdl;
 
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     using ADataType = OutDataType;
     using BDataType = WeiDataType;
     using CDataType = InDataType;

@@ -52,67 +52,70 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputePtrOffset compute_ptr_offset_of_groups,
         const ComputePtrOffset compute_ptr_offset_of_n)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
-    const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
-    const index_t n_idx      = __builtin_amdgcn_readfirstlane(blockIdx.z);
-
-    const long_index_t a_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
-    const long_index_t b_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
-    const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
-    const long_index_t e_group_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
-
-    const long_index_t a_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
-    const auto& ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
-    const long_index_t e_n_offset =
-        amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
-
-    index_t left     = 0;
-    index_t right    = gemms_count;
-    index_t group_id = index_t((left + right) / 2);
-    while((!(block_id_x >= gemm_desc_kernel_args[group_id].BlockStart_ &&
-             block_id_x < gemm_desc_kernel_args[group_id].BlockEnd_)) &&
-          left <= right)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
-        if(block_id_x < gemm_desc_kernel_args[group_id].BlockStart_)
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+
+        const index_t block_id_x = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const index_t g_idx      = __builtin_amdgcn_readfirstlane(blockIdx.y);
+        const index_t n_idx      = __builtin_amdgcn_readfirstlane(blockIdx.z);
+
+        const long_index_t a_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetAPtrOffset(g_idx));
+        const long_index_t b_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetBPtrOffset(g_idx));
+        const auto& ds_group_offset = compute_ptr_offset_of_groups.GetDsPtrOffset(g_idx);
+        const long_index_t e_group_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_groups.GetEPtrOffset(g_idx));
+
+        const long_index_t a_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetAPtrOffset(n_idx));
+        const auto& ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
+        const long_index_t e_n_offset =
+            amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
+
+        index_t left     = 0;
+        index_t right    = gemms_count;
+        index_t group_id = index_t((left + right) / 2);
+        while((!(block_id_x >= gemm_desc_kernel_args[group_id].BlockStart_ &&
+                 block_id_x < gemm_desc_kernel_args[group_id].BlockEnd_)) &&
+              left <= right)
         {
-            right = group_id;
+            if(block_id_x < gemm_desc_kernel_args[group_id].BlockStart_)
+            {
+                right = group_id;
+            }
+            else
+            {
+                left = group_id;
+            }
+            group_id = index_t((left + right) / 2);
         }
-        else
-        {
-            left = group_id;
-        }
-        group_id = index_t((left + right) / 2);
+
+        using DsPointer = decltype(gemm_desc_kernel_args[Number<0>{}].ds_ptr_);
+        DsPointer p_ds_grid_grp;
+        static constexpr index_t NumDTensor = DsPointer::Size();
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            p_ds_grid_grp(i) =
+                gemm_desc_kernel_args[group_id].ds_ptr_[i] + ds_group_offset[i] + ds_n_offset[i];
+        });
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+            gemm_desc_kernel_args[group_id].a_ptr_ + a_group_offset + a_n_offset,
+            gemm_desc_kernel_args[group_id].b_ptr_ + b_group_offset,
+            p_ds_grid_grp,
+            gemm_desc_kernel_args[group_id].e_ptr_ + e_group_offset + e_n_offset,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            c_element_op,
+            gemm_desc_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
+            gemm_desc_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
+            gemm_desc_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
+            gemm_desc_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
+            gemm_desc_kernel_args[group_id].block_2_etile_map_);
     }
-
-    using DsPointer = decltype(gemm_desc_kernel_args[Number<0>{}].ds_ptr_);
-    DsPointer p_ds_grid_grp;
-    static constexpr index_t NumDTensor = DsPointer::Size();
-    static_for<0, NumDTensor, 1>{}([&](auto i) {
-        p_ds_grid_grp(i) =
-            gemm_desc_kernel_args[group_id].ds_ptr_[i] + ds_group_offset[i] + ds_n_offset[i];
-    });
-
-    GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
-        gemm_desc_kernel_args[group_id].a_ptr_ + a_group_offset + a_n_offset,
-        gemm_desc_kernel_args[group_id].b_ptr_ + b_group_offset,
-        p_ds_grid_grp,
-        gemm_desc_kernel_args[group_id].e_ptr_ + e_group_offset + e_n_offset,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        c_element_op,
-        gemm_desc_kernel_args[group_id].a_grid_desc_ak0_m_ak1_,
-        gemm_desc_kernel_args[group_id].b_grid_desc_bk0_n_bk1_,
-        gemm_desc_kernel_args[group_id].ds_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_kernel_args[group_id].e_grid_desc_mblock_mperblock_nblock_nperblock_,
-        gemm_desc_kernel_args[group_id].block_2_etile_map_);
 #else
     ignore = gemm_desc_kernel_args;
     ignore = gemms_count;
@@ -199,6 +202,9 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                                              BComputeDataType>
 {
     using DeviceOp = DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumDTensor  = DsDataType::Size();
     static constexpr index_t MaxGemmsNum = 32;
