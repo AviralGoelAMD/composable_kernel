@@ -72,6 +72,38 @@ namespace device {
         }                                                                      \
     }
 
+#define GET_NXDL_PER_WAVE2_IMPL                                                  \
+    template <index_t BlockSize_,                                                \
+              index_t MPerBlock,                                                 \
+              index_t NPerBlock,                                                 \
+              index_t MPerXDL,                                                   \
+              index_t NPerXDL,                                                   \
+              index_t MXdlPerWave,                                               \
+              bool IsWave64>                                                     \
+    static constexpr auto GetNXdlPerWave2()                                      \
+    {                                                                            \
+        constexpr index_t Waves  = IsWave64 ? BlockSize_ / 64 : BlockSize_ / 32; \
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXDL);          \
+        static_assert(MWaves > 0);                                               \
+                                                                                 \
+        constexpr index_t NWaves = Waves / MWaves;                               \
+        if constexpr(NWaves == 0)                                                \
+        {                                                                        \
+            return 0;                                                            \
+        }                                                                        \
+        else                                                                     \
+        {                                                                        \
+            if constexpr(NPerBlock % (NPerXDL * NWaves) == 0)                    \
+            {                                                                    \
+                return NPerBlock / (NWaves * NPerXDL);                           \
+            }                                                                    \
+            else                                                                 \
+            {                                                                    \
+                return 0;                                                        \
+            }                                                                    \
+        }                                                                        \
+    }
+
 #define INVOKER_RUN_IMPL                                                               \
     float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{}) \
     {                                                                                  \
@@ -128,48 +160,76 @@ namespace device {
         }                                                                              \
     }
 
-#define IS_VALID_COMPILATION_PARAMETER_IMPL                                                       \
-    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation>                               \
-    __device__ static bool constexpr IsValidCompilationParameter()                                \
-    {                                                                                             \
-        #if defined(__gfx11__) || defined(__gfx12__) if constexpr(MPerXdl != 16 || NPerXdl != 16) \
-        {                                                                                         \
-            return false;                                                                         \
-        }                                                                                         \
-        #endif                                                                                    \
-                                                                                                  \
-            #if defined(__gfx11__) constexpr bool SupportMemOp =                                  \
-                CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set;                     \
-        #else constexpr bool SupportMemOp =                                                       \
-            sizeof(CDataType) >= 2 ||                                                             \
-            (CGlobalMemoryDataOperation == InMemoryDataOperationEnum::Set);                       \
-        #endif if constexpr(SupportMemOp == false) { return false; }                              \
-                                                                                                  \
-        if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)                                          \
-        {                                                                                         \
-            constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);                       \
-            constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);                       \
-            if constexpr(MWaves > 0 && NWaves > 0)                                                \
-            {                                                                                     \
-                constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);                       \
-                if constexpr(WaveSize == get_warp_size())                                         \
-                {                                                                                 \
-                    return true;                                                                  \
-                }                                                                                 \
-                else                                                                              \
-                {                                                                                 \
-                    return false;                                                                 \
-                }                                                                                 \
-            }                                                                                     \
-            else                                                                                  \
-            {                                                                                     \
-                return false;                                                                     \
-            }                                                                                     \
-        }                                                                                         \
-        else                                                                                      \
-        {                                                                                         \
-            return false;                                                                         \
-        }                                                                                         \
+template <index_t BlockSize,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t MPerXdl,
+          index_t NPerXdl,
+          index_t MXdlPerWave,
+          index_t NXdlPerWave,
+          typename CDataType,
+          InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+__device__ static bool constexpr IsValidGemmCompilationParameter()
+{
+#if defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(MPerXdl != 16 || NPerXdl != 16)
+    {
+        return false;
+    }
+#endif
+
+#if defined(__gfx11__)
+    constexpr bool SupportMemOp = CGlobalMemoryDataOperation_ == InMemoryDataOperationEnum::Set;
+#else
+    constexpr bool SupportMemOp =
+        sizeof(CDataType) >= 2 || (CGlobalMemoryDataOperation_ == InMemoryDataOperationEnum::Set);
+#endif
+    if constexpr(SupportMemOp == false)
+    {
+        return false;
+    }
+
+    if constexpr(MXdlPerWave > 0 && NXdlPerWave > 0)
+    {
+        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWaves = NPerBlock / (NXdlPerWave * NPerXdl);
+        if constexpr(MWaves > 0 && NWaves > 0)
+        {
+            constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
+            if constexpr(WaveSize == get_warp_size())
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+    else
+    {
+        return false;
+    }
+}
+
+#define IS_VALID_COMPILATION_PARAMETER_IMPL                                    \
+    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation_ =          \
+                  InMemoryDataOperationEnum::Set>                              \
+    __device__ static bool constexpr IsValidCompilationParameter()             \
+    {                                                                          \
+        return IsValidGemmCompilationParameter<BlockSize,                      \
+                                               MPerBlock,                      \
+                                               NPerBlock,                      \
+                                               MPerXdl,                        \
+                                               NPerXdl,                        \
+                                               MXdlPerWave,                    \
+                                               NXdlPerWave,                    \
+                                               CDataType,                      \
+                                               CGlobalMemoryDataOperation_>(); \
     }
 
 #define CHECK_XDL_LAYOUT                                                       \

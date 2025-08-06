@@ -227,7 +227,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Problem = typename GridwiseGemm::Problem;
+    using Problem = typename GridwiseGemm64::Problem;
 
     // Argument
     struct Argument : public Problem, public BaseArgument
@@ -267,8 +267,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         using Argument = DeviceBatchedGemmXdl::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {

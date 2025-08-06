@@ -49,12 +49,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
-    static_assert(MWaves > 0);
-    static_assert(NWaves > 0);
-    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
-
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);
     static constexpr index_t NPerBlock = BK0NK1BlockDesc{}.GetLength(I1);
     static constexpr index_t KPerBlock =
@@ -64,6 +58,12 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
     static constexpr index_t B_K0 = BK0NK1BlockDesc{}.GetLength(I0);
     static constexpr index_t A_K1 = AK0MK1BlockDesc{}.GetLength(I2);
     static constexpr index_t B_K1 = BK0NK1BlockDesc{}.GetLength(I2);
+
+    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static_assert(MWaves > 0);
+    static_assert(NWaves > 0);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeTypeA, MPerXDL, NPerXDL, KPack, ComputeTypeB>{};

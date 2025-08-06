@@ -70,7 +70,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         const index_t num_blocks_per_batch =
@@ -236,9 +236,36 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 {
     using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
 
-    GET_NXDL_PER_WAVE_IMPL
-    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
-    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+    GET_NXDL_PER_WAVE2_IMPL;
+    static constexpr auto Gemm0NXdlPerWave64 = GetNXdlPerWave2<BlockSize,
+                                                               Gemm0MPerBlock,
+                                                               Gemm0NPerBlock,
+                                                               Gemm0MPerXdl,
+                                                               Gemm0NPerXdl,
+                                                               Gemm0MXdlPerWave,
+                                                               true>();
+    static constexpr auto Gemm0NXdlPerWave32 = GetNXdlPerWave2<BlockSize,
+                                                               Gemm0MPerBlock,
+                                                               Gemm0NPerBlock,
+                                                               Gemm0MPerXdl,
+                                                               Gemm0NPerXdl,
+                                                               Gemm0MXdlPerWave,
+                                                               false>();
+
+    static constexpr auto Gemm1NXdlPerWave64 = GetNXdlPerWave2<BlockSize,
+                                                               Gemm0MPerBlock,
+                                                               Gemm1NPerBlock,
+                                                               Gemm0MPerXdl,
+                                                               Gemm0NPerXdl,
+                                                               Gemm0MXdlPerWave,
+                                                               true>();
+    static constexpr auto Gemm1NXdlPerWave32 = GetNXdlPerWave2<BlockSize,
+                                                               Gemm0MPerBlock,
+                                                               Gemm1NPerBlock,
+                                                               Gemm0MPerXdl,
+                                                               Gemm0NPerXdl,
+                                                               Gemm0MXdlPerWave,
+                                                               false>();
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
     static constexpr index_t NumD1Tensor = D1sDataType::Size();
@@ -452,7 +479,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     using E1GridDesc_M_N  = decltype(MakeE1GridDescriptor_M_N<E1Layout>(1, 1, 1));
 
     // GridwiseGemm
-    template <index_t NXdlPerWave_>
+    template <index_t Gemm0NXdlPerWave_, index_t Gemm1NXdlPerWave_>
     using GridwiseGemmBase = GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
         A0DataType, // TODO: distinguish A/B datatype
         Acc0DataType,
@@ -487,7 +514,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         Gemm0NPerXdl,
         Gemm0MXdlPerWave,
         Gemm0NXdlPerWave_,
-        Gemm1NXdlPerWave,
+        Gemm1NXdlPerWave_,
         A0BlockTransferThreadClusterLengths_AK0_M_AK1,
         A0BlockTransferThreadClusterArrangeOrder,
         A0BlockTransferSrcAccessOrder,
@@ -519,17 +546,18 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         CDE1ShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm64 =
+        GridwiseGemmBase<math::max(Gemm0NXdlPerWave64, 1), math::max(Gemm0NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<Gemm0NXdlPerWave32, Gemm1NXdlPerWave32>;
 
     using A0GridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultA0GridDescriptor_AK0_M_AK1(
             A0GridDesc_M_K{}))>;
     using B0GridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultB0GridDescriptor_BK0_N_BK1(
             B0GridDesc_N_K{}))>;
     using B1GridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultB1GridDescriptor_BK0_N_BK1(
             B1GridDesc_N_K{}))>;
 
     // Argument
@@ -577,15 +605,15 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
               e1_grid_desc_m_n_{
                   DeviceOp::MakeE1GridDescriptor_M_N<E1Layout>(MRaw, Gemm1NRaw, StrideE1)},
               a0_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultA0GridDescriptor_AK0_M_AK1(a0_grid_desc_m_k_)},
+                  GridwiseGemm64::MakeDefaultA0GridDescriptor_AK0_M_AK1(a0_grid_desc_m_k_)},
               b0_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultB0GridDescriptor_BK0_N_BK1(b0_grid_desc_n_k_)},
+                  GridwiseGemm64::MakeDefaultB0GridDescriptor_BK0_N_BK1(b0_grid_desc_n_k_)},
               d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_{},
               b1_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultB1GridDescriptor_BK0_N_BK1(b1_grid_desc_n_k_)},
+                  GridwiseGemm64::MakeDefaultB1GridDescriptor_BK0_N_BK1(b1_grid_desc_n_k_)},
               d1s_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e1_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_e1tile_map_{GridwiseGemm::MakeDefaultBlock2E1TileMap(e1_grid_desc_m_n_)},
+              block_2_e1tile_map_{GridwiseGemm64::MakeDefaultBlock2E1TileMap(e1_grid_desc_m_n_)},
               a0_element_op_{a0_element_op},
               b0_element_op_{b0_element_op},
               cde0_element_op_{cde0_element_op},
@@ -649,23 +677,53 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                     DeviceOp::MakeE1GridDescriptor_M_N<D1Layout>(MRaw, Gemm1NRaw, StrideD1s[i]);
             });
 
-            if(GridwiseGemm::CheckValidity(a0_grid_desc_m_k_,
-                                           b0_grid_desc_n_k_,
-                                           b1_grid_desc_n_k_,
-                                           e1_grid_desc_m_n_,
-                                           block_2_e1tile_map_))
+            if(get_warp_size() == 64)
             {
-                e1_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e1_grid_desc_m_n_);
+                if constexpr((Gemm0NXdlPerWave64 > 0) && (Gemm1NXdlPerWave64 > 0))
+                {
+                    if(GridwiseGemm64::CheckValidity(a0_grid_desc_m_k_,
+                                                     b0_grid_desc_n_k_,
+                                                     b1_grid_desc_n_k_,
+                                                     e1_grid_desc_m_n_,
+                                                     block_2_e1tile_map_))
+                    {
+                        e1_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm64::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e1_grid_desc_m_n_);
 
-                d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
-                    GridwiseGemm::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
-                        d0s_grid_desc_m_n_);
+                        d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
+                            GridwiseGemm64::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                                d0s_grid_desc_m_n_);
 
-                d1s_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        d1s_grid_desc_m_n_);
+                        d1s_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm64::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                d1s_grid_desc_m_n_);
+                    }
+                }
+            }
+            else
+            {
+                if constexpr((Gemm0NXdlPerWave64 > 0) && (Gemm1NXdlPerWave64 > 0))
+                {
+                    if(GridwiseGemm32::CheckValidity(a0_grid_desc_m_k_,
+                                                     b0_grid_desc_n_k_,
+                                                     b1_grid_desc_n_k_,
+                                                     e1_grid_desc_m_n_,
+                                                     block_2_e1tile_map_))
+                    {
+                        e1_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm32::MakeE1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e1_grid_desc_m_n_);
+
+                        d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_ =
+                            GridwiseGemm32::MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(
+                                d0s_grid_desc_m_n_);
+
+                        d1s_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm32::MakeD1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                d1s_grid_desc_m_n_);
+                    }
+                }
             }
         }
 
@@ -673,9 +731,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         // pointers
         const A0DataType* p_a0_grid_;
         const B0DataType* p_b0_grid_;
-        typename GridwiseGemm::D0sGridPointer p_d0s_grid_;
+        typename GridwiseGemm64::D0sGridPointer p_d0s_grid_;
         const B1DataType* p_b1_grid_;
-        typename GridwiseGemm::D1sGridPointer p_d1s_grid_;
+        typename GridwiseGemm64::D1sGridPointer p_d1s_grid_;
         E1DataType* p_e1_grid_;
 
         // tensor descriptors for problem definiton
@@ -689,16 +747,18 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         // tensor descriptors for block/thread-wise copy
         A0GridDesc_AK0_M_AK1 a0_grid_desc_ak0_m_ak1_;
         B0GridDesc_BK0_N_BK1 b0_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+        typename GridwiseGemm64::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
             d0s_grid_desc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
+        typename GridwiseGemm32::D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5
+            d0s_grid_desc32_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemm64::D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             d1s_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemm64::E1GridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e1_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e1-tile map
-        typename GridwiseGemm::DefaultBlock2E1TileMap block_2_e1tile_map_;
+        typename GridwiseGemm64::DefaultBlock2E1TileMap block_2_e1tile_map_;
 
         // element-wise op
         A0ElementwiseOperation a0_element_op_;
@@ -717,7 +777,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a0_grid_desc_m_k_,
                                             arg.b0_grid_desc_n_k_,
@@ -795,6 +856,32 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             }
         }
 
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(Gemm0NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                if constexpr(Gemm0NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+        }
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -848,11 +935,36 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg.a0_grid_desc_m_k_,
-                                           arg.b0_grid_desc_n_k_,
-                                           arg.b1_grid_desc_n_k_,
-                                           arg.e1_grid_desc_m_n_,
-                                           arg.block_2_e1tile_map_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(Gemm0NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg.a0_grid_desc_m_k_,
+                                                     arg.b0_grid_desc_n_k_,
+                                                     arg.b1_grid_desc_n_k_,
+                                                     arg.e1_grid_desc_m_n_,
+                                                     arg.block_2_e1tile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(Gemm0NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(arg.a0_grid_desc_m_k_,
+                                                     arg.b0_grid_desc_n_k_,
+                                                     arg.b1_grid_desc_n_k_,
+                                                     arg.e1_grid_desc_m_n_,
+                                                     arg.block_2_e1tile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic
