@@ -123,11 +123,13 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -191,6 +193,8 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN2_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

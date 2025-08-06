@@ -155,7 +155,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     static constexpr index_t APackedSize = packed_size_v<ADataType>;
     static constexpr index_t BPackedSize = packed_size_v<BDataType>;
@@ -165,7 +165,9 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -338,6 +340,8 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
 
             return ave_time;
         }
+
+        INVOKER_RUN2_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

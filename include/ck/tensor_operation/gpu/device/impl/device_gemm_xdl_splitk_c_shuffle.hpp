@@ -142,7 +142,7 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
@@ -161,20 +161,20 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
                  CElementwiseOperation c_element_op_)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     MPadded_,
-                                     NPadded_,
-                                     KPadded_,
-                                     K0Padded_,
-                                     k_batch_),
+            : GridwiseGemm64::Argument(p_a_grid_,
+                                       p_b_grid_,
+                                       p_c_grid_,
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideC_,
+                                       MPadded_,
+                                       NPadded_,
+                                       KPadded_,
+                                       K0Padded_,
+                                       k_batch_),
               a_element_op(a_element_op_),
               b_element_op(b_element_op_),
               c_element_op(c_element_op_)
@@ -194,7 +194,9 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
         void Print(const Argument& karg) { karg.Print(); }
 
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -300,6 +302,8 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
 
             return ave_time;
         }
+
+        INVOKER_RUN2_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

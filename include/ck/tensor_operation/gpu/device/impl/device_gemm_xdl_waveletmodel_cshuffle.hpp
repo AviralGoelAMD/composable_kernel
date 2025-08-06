@@ -343,7 +343,9 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
             {
@@ -416,6 +418,8 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

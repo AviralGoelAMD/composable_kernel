@@ -452,7 +452,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
                   DeviceOp::MakeB1GridDescriptor_BK0_N_BK1(NRaw, Gemm1NRaw, StrideB1)},
               c_grid_desc_m_n_{DeviceOp::MakeCGridDescriptor_M_N(MRaw, Gemm1NRaw, StrideC)},
               c_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
+              block_2_ctile_map_{GridwiseGemm64::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               acc_element_op_{acc_element_op},
@@ -462,11 +462,11 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
               compute_base_ptr_of_batch_{BatchStrideA, BatchStrideB, BatchStrideB1, BatchStrideC},
               raw_lengths_m_n_k_o_{MRaw, NRaw, KRaw, Gemm1NRaw}
         {
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           b1_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+            if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
+                                             b_grid_desc_bk0_n_bk1_,
+                                             b1_grid_desc_bk0_n_bk1_,
+                                             c_grid_desc_m_n_,
+                                             block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
                     GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
@@ -511,7 +511,9 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!DeviceOp::IsSupportedArgument(arg))
             {
@@ -581,7 +583,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 
             return ave_time;
         }
-
+        INVOKER_RUN_IMPL
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

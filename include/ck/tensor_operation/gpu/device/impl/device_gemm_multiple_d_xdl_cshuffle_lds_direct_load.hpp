@@ -133,7 +133,9 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
     struct Invoker : public BaseInvoker
     {
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -196,6 +198,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

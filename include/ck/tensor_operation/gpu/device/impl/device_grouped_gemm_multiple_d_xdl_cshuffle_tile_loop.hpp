@@ -632,7 +632,9 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_dev_gemm_args_ == nullptr)
             {
@@ -644,6 +646,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
 
             return Run(arg, arg.p_dev_gemm_args_, stream_config);
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

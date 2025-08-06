@@ -437,9 +437,9 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                                                     batched_gemm_e_permute_desc.stride_M_,
                                                     batched_gemm_e_permute_desc.stride_N_)},
               a_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+                  GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+                  GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               e_grid_desc_mblock_mperblock_nblock_nperblock{},
               e_grid_desc_g0_g1_m_n_{
                   DeviceOp::MakeEGridDescriptor_G0_G1_M_N(batched_gemm_e_permute_desc.G0_,
@@ -451,20 +451,42 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                                                           batched_gemm_e_permute_desc.stride_M_,
                                                           batched_gemm_e_permute_desc.stride_N_)},
               compute_ptr_offset_of_batch_{batch_stride_A, batch_stride_B, e_grid_desc_g0_g1_m_n_},
-              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
-            if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
-                                           b_grid_desc_n_k_,
-                                           ck::Tuple<>{},
-                                           e_grid_desc_m_n_,
-                                           block_2_etile_map_))
+            if(get_warp_size() == 64)
             {
-                e_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e_grid_desc_m_n_);
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k_,
+                                                     b_grid_desc_n_k_,
+                                                     ck::Tuple<>{},
+                                                     e_grid_desc_m_n_,
+                                                     block_2_etile_map_))
+                    {
+                        e_grid_desc_mblock_mperblock_nblock_nperblock =
+                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e_grid_desc_m_n_);
+                    }
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k_,
+                                                     b_grid_desc_n_k_,
+                                                     ck::Tuple<>{},
+                                                     e_grid_desc_m_n_,
+                                                     block_2_etile_map_))
+                    {
+                        e_grid_desc_mblock_mperblock_nblock_nperblock =
+                            GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e_grid_desc_m_n_);
+                    }
+                }
             }
         }
 
@@ -512,7 +534,9 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -574,6 +598,8 @@ struct DeviceBatchedGemmEPermuteXdl : public DeviceBatchedGemmEPermute<ALayout,
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

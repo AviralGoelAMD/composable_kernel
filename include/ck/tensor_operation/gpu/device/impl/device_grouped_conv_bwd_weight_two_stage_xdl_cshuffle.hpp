@@ -1518,7 +1518,9 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             return ave_time;
         }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time                 = 0.f;
             auto launch_elementwise_kernel = [&]() {
@@ -1642,6 +1644,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             avg_time += launch_elementwise_kernel();
             return avg_time;
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

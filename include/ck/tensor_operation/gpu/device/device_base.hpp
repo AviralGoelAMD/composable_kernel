@@ -72,6 +72,62 @@ namespace device {
         }                                                                      \
     }
 
+#define INVOKER_RUN_IMPL                                                               \
+    float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{}) \
+    {                                                                                  \
+        if(get_warp_size() == 64)                                                      \
+        {                                                                              \
+            if constexpr(NXdlPerWave64 > 0)                                            \
+            {                                                                          \
+                return RunImp<GridwiseGemm64>(arg, stream_config);                     \
+            }                                                                          \
+            else                                                                       \
+            {                                                                          \
+                return 0;                                                              \
+            }                                                                          \
+        }                                                                              \
+        else                                                                           \
+        {                                                                              \
+            if constexpr(NXdlPerWave32 > 0)                                            \
+            {                                                                          \
+                return RunImp<GridwiseGemm32>(arg, stream_config);                     \
+            }                                                                          \
+            else                                                                       \
+            {                                                                          \
+                return 0;                                                              \
+            }                                                                          \
+        }                                                                              \
+    }
+
+#define INVOKER_RUN2_IMPL                                                              \
+    float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{}) \
+    {                                                                                  \
+        if(get_warp_size() == 64)                                                      \
+        {                                                                              \
+            if constexpr(NXdlPerWave64 > 0)                                            \
+            {                                                                          \
+                return RunImp<GridwiseGemm64>(arg, stream_config);                     \
+            }                                                                          \
+            else                                                                       \
+            {                                                                          \
+                return 0;                                                              \
+            }                                                                          \
+        }                                                                              \
+        else                                                                           \
+        {                                                                              \
+            if constexpr(NXdlPerWave32 > 0)                                            \
+            {                                                                          \
+                return RunImp<GridwiseGemm32>(                                         \
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg),   \
+                    stream_config);                                                    \
+            }                                                                          \
+            else                                                                       \
+            {                                                                          \
+                return 0;                                                              \
+            }                                                                          \
+        }                                                                              \
+    }
+
 #define IS_VALID_COMPILATION_PARAMETER_IMPL                                                       \
     template <InMemoryDataOperationEnum CGlobalMemoryDataOperation>                               \
     __device__ static bool constexpr IsValidCompilationParameter()                                \

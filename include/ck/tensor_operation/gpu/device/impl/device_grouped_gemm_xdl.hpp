@@ -516,10 +516,11 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg,
-                  const StreamConfig& stream_config = StreamConfig{},
-                  hipStream_t cpy_stream            = nullptr,
-                  hipEvent_t cpy_event              = nullptr)
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{},
+                     hipStream_t cpy_stream            = nullptr,
+                     hipEvent_t cpy_event              = nullptr)
         {
             bool has_main_k_block_loop = true;
 
@@ -633,6 +634,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

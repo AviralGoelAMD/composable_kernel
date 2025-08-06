@@ -1244,7 +1244,9 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return ave_time;
         }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time = 0.f;
             if constexpr(!isMultiABD)
@@ -1341,6 +1343,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             }
             return avg_time;
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

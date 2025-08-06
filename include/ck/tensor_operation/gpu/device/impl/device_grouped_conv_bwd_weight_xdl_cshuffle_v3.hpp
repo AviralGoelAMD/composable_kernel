@@ -629,7 +629,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             const index_t GemmM = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
             const index_t GemmN = arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
@@ -1236,6 +1238,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             }
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

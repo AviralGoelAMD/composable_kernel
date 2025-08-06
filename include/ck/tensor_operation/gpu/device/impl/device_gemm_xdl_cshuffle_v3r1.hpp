@@ -145,7 +145,7 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         Argument(const ADataType* p_a_grid_,
                  const BDataType* p_b_grid_,
@@ -159,17 +159,17 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                  std::array<ck::index_t, NumDTensor> StrideDs_,
                  index_t StrideC_,
                  index_t k_batch_)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     reinterpret_cast<ReduceDataType*>(p_c_grid_),
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     k_batch_,
-                                     true),
+            : GridwiseGemm64::Argument(p_a_grid_,
+                                       p_b_grid_,
+                                       reinterpret_cast<ReduceDataType*>(p_c_grid_),
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideC_,
+                                       k_batch_,
+                                       true),
               p_ds(p_ds_),
               StrideDs(StrideDs_)
         {
@@ -285,7 +285,9 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             return ave_time;
         }
 
-        float Run(const Argument& arg_, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             auto arg = *dynamic_cast<const typename GridwiseGemm::Argument*>(&arg_);
 
@@ -548,6 +550,8 @@ struct DeviceGemm_Xdl_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             }
             return ave_time;
         }
+
+        INVOKER_RUN2_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

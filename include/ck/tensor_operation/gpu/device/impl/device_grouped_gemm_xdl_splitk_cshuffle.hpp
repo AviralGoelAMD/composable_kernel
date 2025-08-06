@@ -382,10 +382,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg,
-                  const StreamConfig& stream_config = StreamConfig{},
-                  hipStream_t cpy_stream            = nullptr,
-                  hipEvent_t cpy_event              = nullptr)
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{},
+                     hipStream_t cpy_stream            = nullptr,
+                     hipEvent_t cpy_event              = nullptr)
         {
             index_t K0                       = arg.gemm_kernel_args_[0].karg_.K0Padded;
             bool all_have_kbatch_gt_one      = arg.gemm_kernel_args_[0].karg_.k_batch > 1;
@@ -542,6 +543,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

@@ -124,14 +124,16 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
         void Print(const Argument& karg) { karg.Print(); }
 
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -210,6 +212,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
 
             return ave_time;
         }
+
+        INVOKER_RUN2_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

@@ -520,7 +520,9 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -639,6 +641,7 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
             return ave_time;
         }
 
+        INVOKER_RUN_IMPL
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

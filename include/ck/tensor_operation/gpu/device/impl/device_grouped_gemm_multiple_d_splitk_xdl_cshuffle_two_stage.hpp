@@ -624,7 +624,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_dev_gemm_kargs_ == nullptr)
             {
@@ -644,6 +646,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             return Run(arg, arg.p_dev_gemm_kargs_, arg.p_workspace_, stream_config);
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

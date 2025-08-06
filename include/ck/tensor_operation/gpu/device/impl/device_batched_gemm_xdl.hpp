@@ -266,7 +266,9 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     {
         using Argument = DeviceBatchedGemmXdl::Argument;
 
-        float Run(const Argument& karg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -303,6 +305,8 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
 
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

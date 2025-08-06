@@ -742,7 +742,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                       << arg.c_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time = 0.f;
 
@@ -903,6 +905,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
             return avg_time;
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

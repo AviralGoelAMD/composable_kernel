@@ -819,7 +819,9 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_akb_ak0_m_ak1_,
                                             arg.b_grid_desc_bkb_bk0_n_bk1_,
@@ -943,6 +945,8 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
                     return launch_kernel_atomic_add(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
