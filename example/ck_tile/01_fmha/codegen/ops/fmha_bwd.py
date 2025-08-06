@@ -353,14 +353,15 @@ def get_fmha_bwd_dq_dk_dv_tile_ppl_dict_from_dtype(dtype : str) -> Optional[dict
         # TODO: f32 instances use a lot of shared memory, 256 is disabled, find a working config
         # (if 256 is needed for f32 at all)
         return {
-            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 16, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '64'  : [FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            '128' : [FmhaBwdDQDKDVTileSize( 16,  64, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
-                        "kr_ktr_vr_iglp", "kr_ktr_vr"],
-            # '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
-            #             "kr_ktr_vr_iglp", "kr_ktr_vr"]
+            #                              bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
+            '32'  : [FmhaBwdDQDKDVTileSize( 32, 128,  32,  32,  32,  32,  64,   32,   32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 16, 16, 16, 16, 1),
+                        "kr_ktr_vr", "kr_ktr_vr"],
+            '64'  : [FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  16,   64,   64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+                        "kr_ktr_vr", "kr_ktr_vr"],
+            '128' : [FmhaBwdDQDKDVTileSize( 16,  64, 128,  16, 128,  16,  16,  128,  128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+                        "kr_ktr_vr", "kr_ktr_vr"],
+          # '256' : [FmhaBwdDQDKDVTileSize( 16,  64, 256,  16, 256,  16,  32,  256,  256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+          #             "kr_ktr_vr", "kr_ktr_vr"]
         }
     elif dtype == 'fp16' or dtype == 'bf16':
         return {
@@ -821,7 +822,7 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
             # fp32 only, minimal set of parameters
             elif receipt == 801:
                 cond = dtype == 'fp32'
-                cond &= hdim in [48, 128]
+                cond &= hdim in [64, 128]
                 cond &= mode == 'batch'
                 cond &= bias == 'no'
                 cond &= dropout == 'no'
