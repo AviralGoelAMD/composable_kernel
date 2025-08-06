@@ -275,6 +275,12 @@ struct GemmConfigPreshuffle_2 : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer     = true;
 };
 
+template <typename WorkspaceType_>
+struct GemmConfigTwoStage : public GemmConfigBase
+{
+    using WorkspaceType = WorkspaceType_;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
