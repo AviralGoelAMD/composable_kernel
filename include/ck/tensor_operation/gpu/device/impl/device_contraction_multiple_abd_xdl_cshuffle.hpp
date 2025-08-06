@@ -180,7 +180,8 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
     using ComputeDataType = EDataType;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleABD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleABD_xdl_cshuffle<
         AsDataType,
         BsDataType,
         ComputeDataType,
@@ -202,7 +203,7 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWav_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

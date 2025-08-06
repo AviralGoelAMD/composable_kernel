@@ -88,7 +88,8 @@ struct DeviceGemm_Xdl_CShuffleV2 : public DeviceGemm<ALayout,
     static constexpr auto I2 = Number<2>{};
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_xdl_cshuffle_v2<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_xdl_cshuffle_v2<
         ALayout,
         BLayout,
         CLayout,
@@ -112,7 +113,7 @@ struct DeviceGemm_Xdl_CShuffleV2 : public DeviceGemm<ALayout,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

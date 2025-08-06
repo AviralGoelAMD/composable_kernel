@@ -180,7 +180,8 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
     };
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -200,7 +201,7 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

@@ -532,7 +532,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         BComputeDataType, DoElementwiseBeforeCShuffle
 
     // Use appropriate gridwise gemm
-    using GridwiseGemm = std::conditional_t<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = std::conditional_t<
         isMultiA || isMultiB,
         GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;

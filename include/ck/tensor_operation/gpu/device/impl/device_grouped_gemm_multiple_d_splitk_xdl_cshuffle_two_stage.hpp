@@ -108,7 +108,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     using WorkspaceDataType = float;
 
     // First stage GridwiseGEMM kernel.
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType,
         BDataType,
@@ -129,7 +130,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         NPerXDL,
         AK1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_KBatch_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

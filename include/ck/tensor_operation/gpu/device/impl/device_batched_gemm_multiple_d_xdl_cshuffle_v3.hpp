@@ -200,7 +200,8 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
     using CDataType_                               = CDataType;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultiD_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         DsLayout,
@@ -224,7 +225,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

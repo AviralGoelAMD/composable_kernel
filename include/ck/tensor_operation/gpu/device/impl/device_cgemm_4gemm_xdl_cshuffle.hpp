@@ -121,7 +121,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     }
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdl_cshuffle_v1<
         ALayout,
         BLayout,
         CLayout,
@@ -145,7 +146,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

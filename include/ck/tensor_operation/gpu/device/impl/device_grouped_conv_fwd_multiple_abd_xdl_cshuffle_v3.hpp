@@ -478,7 +478,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
 
     // Use appropriate gridwise gemm
-    using GridwiseGemm = GridwiseGemmMultiD_xdl_cshuffle_v3<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultiD_xdl_cshuffle_v3<
         tensor_layout::gemm::RowMajor,
         tensor_layout::gemm::ColumnMajor,
         DsLayout,
@@ -502,7 +503,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

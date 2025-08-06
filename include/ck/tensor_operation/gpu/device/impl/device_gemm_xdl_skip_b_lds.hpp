@@ -192,7 +192,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -211,7 +212,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
         NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

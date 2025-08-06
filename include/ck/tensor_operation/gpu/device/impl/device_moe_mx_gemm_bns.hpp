@@ -94,7 +94,8 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
     static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
     static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm =
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase =
         GridwiseMoeGemmMXBNS<ALayout,
                              BLayout,
                              DsLayout,
@@ -121,7 +122,7 @@ struct DeviceMoeGemmMXBNS : public DeviceMoEGemmMXBPreShuffle<ALayout,
                              MPerXDL,
                              NPerXDL,
                              MXdlPerWave,
-                             NXdlPerWave,
+                             NXdlPerWave_,
                              ABlockTransferThreadClusterLengths_AK0_M_AK1,
                              ABlockTransferThreadClusterArrangeOrder,
                              ABlockTransferSrcAccessOrder,

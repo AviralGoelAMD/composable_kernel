@@ -80,7 +80,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
     static constexpr auto I1            = Number<1>{};
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    using GridwiseGemm = GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad<
         ALayout,
         BLayout,
         DsLayout,
@@ -107,7 +108,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,

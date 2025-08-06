@@ -236,7 +236,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     using ComputeDataType = ADataType;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         BDataType,
         ComputeDataType,
@@ -257,7 +258,7 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

@@ -77,7 +77,8 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
 
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk<
         BlockSize,
         BlockToCTileMap_GemmStreamK<MPerBlock,
                                     NPerBlock,
@@ -99,7 +100,7 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

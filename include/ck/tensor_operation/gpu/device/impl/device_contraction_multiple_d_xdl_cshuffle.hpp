@@ -321,7 +321,8 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N({}, {}));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleD_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         BDataType,
         ComputeDataType,
@@ -342,7 +343,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

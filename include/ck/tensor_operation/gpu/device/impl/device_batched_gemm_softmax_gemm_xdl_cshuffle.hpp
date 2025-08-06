@@ -377,7 +377,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
                                        C0MatrixMask_impl<MaskDisabledPredicate>>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
         CShuffleDataType,
@@ -405,7 +406,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         Gemm1NXdlPerWave,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
@@ -924,7 +925,8 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         using CGridDesc_M_N = remove_cvref_t<decltype(MakeCGridDescriptor_M_N(CDesc{}))>;
 
         // GridwiseGemm
-        using GridwiseGemm = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
+        template <index_t NXdlPerWave_>
+        using GridwiseGemmBase = GridwiseBatchedGemmSoftmaxGemm_Xdl_CShuffle<
             ADataType, // TODO: distinguish A/B datatype
             GemmAccDataType,
             CShuffleDataType,

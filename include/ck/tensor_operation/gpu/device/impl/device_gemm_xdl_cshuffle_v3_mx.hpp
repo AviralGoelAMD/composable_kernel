@@ -169,7 +169,8 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
     static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     // GridwiseGemm
-    using GridwiseGemm = conditional_t< //
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = conditional_t< //
         !is_same_v<BLayout, tensor_layout::gemm::MFMA>,
         GridwiseGemmMX_xdl_cshuffle_v3<
             ALayout,
@@ -196,7 +197,7 @@ struct DeviceGemmMX_Xdl_CShuffleV3 : public DeviceGemmMX<ALayout,
             MPerXDL,
             NPerXDL,
             MXdlPerWave,
-            NXdlPerWave,
+            NXdlPerWave_,
             ABlockTransferThreadClusterLengths_AK0_M_AK1,
             ABlockTransferThreadClusterArrangeOrder,
             ABlockTransferSrcAccessOrder,

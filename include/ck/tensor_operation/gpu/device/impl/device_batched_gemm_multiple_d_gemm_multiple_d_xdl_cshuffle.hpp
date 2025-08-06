@@ -452,7 +452,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     using E1GridDesc_M_N  = decltype(MakeE1GridDescriptor_M_N<E1Layout>(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
         A0DataType, // TODO: distinguish A/B datatype
         Acc0DataType,
         D0sDataType,
@@ -485,7 +486,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         Gemm0MPerXdl,
         Gemm0NPerXdl,
         Gemm0MXdlPerWave,
-        Gemm0NXdlPerWave,
+        Gemm0NXdlPerWave_,
         Gemm1NXdlPerWave,
         A0BlockTransferThreadClusterLengths_AK0_M_AK1,
         A0BlockTransferThreadClusterArrangeOrder,

@@ -368,7 +368,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                             I1,
                             I0>;
 
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight<
         BlockSize,
         ADataType,
         BDataType,
@@ -388,7 +389,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         NPerXdl,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,

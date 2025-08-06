@@ -221,7 +221,8 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
     static constexpr index_t NumGemmKPrefetchStage = 1;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultipleABD_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleABD_xdl_cshuffle<
         AsDataType,
         BsDataType,
         ComputeType,
@@ -243,7 +244,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
