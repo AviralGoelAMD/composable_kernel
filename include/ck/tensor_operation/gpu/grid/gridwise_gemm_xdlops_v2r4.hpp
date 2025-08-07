@@ -44,7 +44,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 {
 #ifdefined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         constexpr index_t shared_block_size =
             GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(FloatAB);

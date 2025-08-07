@@ -95,7 +95,7 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         // offset base pointer for each work-group
         const index_t num_blocks_per_batch =

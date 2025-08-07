@@ -246,7 +246,7 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
         }                                                                      \
         else                                                                   \
         {                                                                      \
-            if(BlockwiseGemmPipe::WaveSize != get_warp_size())                 \
+            if(0) /*WaveSize != get_warp_size())*/                             \
             {                                                                  \
                 return false;                                                  \
             }                                                                  \

@@ -97,7 +97,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const index_t KBatch)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<OutElementOp>())
     {
         // offset base pointer for each work-group
         const index_t block_args_id = __builtin_amdgcn_readfirstlane(blockIdx.x);
