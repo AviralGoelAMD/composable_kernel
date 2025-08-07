@@ -111,8 +111,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
@@ -331,8 +331,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
@@ -364,8 +364,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         // check gridwise gemm pipeline
@@ -429,8 +429,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_k0_m_k1),
                                                                 decltype(b_block_desc_k0_n_k1),
-                                                                MPerXDL,
-                                                                NPerXDL,
+                                                                MPerXdl,
+                                                                NPerXdl,
                                                                 MXdlPerWave,
                                                                 NXdlPerWave,
                                                                 K1>;
@@ -574,8 +574,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             FloatAcc,
             decltype(a_block_desc_k0_m_k1),
             decltype(b_block_desc_k0_n_k1),
-            MPerXDL,
-            NPerXDL,
+            MPerXdl,
+            NPerXdl,
             MXdlPerWave,
             NXdlPerWave,
             K1,
@@ -712,8 +712,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
@@ -751,8 +751,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
                                               MPerBlock,
                                               NPerBlock,
                                               K0PerBlock,
-                                              MPerXDL,
-                                              NPerXDL,
+                                              MPerXdl,
+                                              NPerXdl,
                                               K1Value,
                                               MXdlPerWave,
                                               NXdlPerWave,
@@ -791,8 +791,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
                                                 MPerBlock,
                                                 NPerBlock,
                                                 K0PerBlock,
-                                                MPerXDL,
-                                                NPerXDL,
+                                                MPerXdl,
+                                                NPerXdl,
                                                 K1Value,
                                                 MXdlPerWave,
                                                 NXdlPerWave,
@@ -965,13 +965,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
         }
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     __host__ static constexpr bool CheckValidity(const Problem& problem)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||

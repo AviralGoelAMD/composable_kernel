@@ -216,20 +216,21 @@ __device__ static bool constexpr IsValidGemmCompilationParameter()
     }
 }
 
-#define IS_VALID_COMPILATION_PARAMETER_IMPL                                    \
-    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation_ =          \
-                  InMemoryDataOperationEnum::Set>                              \
-    __device__ static bool constexpr IsValidCompilationParameter()             \
-    {                                                                          \
-        return IsValidGemmCompilationParameter<BlockSize,                      \
-                                               MPerBlock,                      \
-                                               NPerBlock,                      \
-                                               MPerXdl,                        \
-                                               NPerXdl,                        \
-                                               MXdlPerWave,                    \
-                                               NXdlPerWave,                    \
-                                               CDataType,                      \
-                                               CGlobalMemoryDataOperation_>(); \
+#define IS_VALID_COMPILATION_PARAMETER_IMPL                                   \
+    template <InMemoryDataOperationEnum CGlobalMemoryDataOperation_ =         \
+                  InMemoryDataOperationEnum::Set>                             \
+    __device__ static bool constexpr IsValidCompilationParameter()            \
+    {                                                                         \
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter< \
+            BlockSize,                                                        \
+            MPerBlock,                                                        \
+            NPerBlock,                                                        \
+            MPerXdl,                                                          \
+            NPerXdl,                                                          \
+            MXdlPerWave,                                                      \
+            NXdlPerWave,                                                      \
+            CDataType,                                                        \
+            CGlobalMemoryDataOperation_>();                                   \
     }
 
 #define CHECK_XDL_LAYOUT                                                       \

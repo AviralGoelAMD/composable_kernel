@@ -274,7 +274,9 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
                 karg.Print();
             }
 
-            if(!GridwiseGemm::CheckValidity(karg))
+            typename GridwiseGemm::Problem arg(
+                karg.M, karg.N, karg.K, karg.StrideA, karg.StrideB, karg.StrideC);
+            if(!GridwiseGemm::CheckValidity(arg))
             {
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext has invalid setting");
@@ -327,8 +329,29 @@ struct DeviceBatchedGemmXdl : public DeviceBatchedGemm<ALayout,
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(problem);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(problem);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Problem&>(problem));
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic
