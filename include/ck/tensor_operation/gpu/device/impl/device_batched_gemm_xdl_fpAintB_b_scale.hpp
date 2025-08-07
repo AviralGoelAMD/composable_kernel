@@ -290,60 +290,64 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         index_t BatchStrideScaleB_;
     };
 
-    struct Argument : public GridwiseGemm64::Argument
+    template <typename GridwiseGemm>
+    struct ArgumentBase : public GridwiseGemm::Argument
     {
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
 
-        Argument(const ADataType* p_a_grid_,
-                 const BDataType* p_b_grid_,
-                 CDataType* p_c_grid_,
-                 index_t M_,
-                 index_t N_,
-                 index_t K_,
-                 index_t StrideA_,
-                 index_t StrideB_,
-                 index_t StrideC_,
-                 index_t StrideScaleB_,
-                 index_t BatchStrideA_,
-                 index_t BatchStrideB_,
-                 index_t BatchStrideC_,
-                 index_t BatchStrideScaleB_,
-                 const BScaleDataType* p_b_scale_grid_,
-                 index_t Batch_,
-                 index_t KBatch_,
-                 AElementwiseOperation a_element_op_,
-                 BElementwiseOperation b_element_op_,
-                 CElementwiseOperation c_element_op_)
-            : GridwiseGemm64::Argument(p_a_grid_,
-                                       p_b_grid_,
-                                       p_c_grid_,
-                                       M_,
-                                       N_,
-                                       K_,
-                                       StrideA_,
-                                       StrideB_,
-                                       StrideC_,
-                                       StrideScaleB_,
-                                       p_b_scale_grid_,
-                                       KBatch_, // KBatch
-                                       a_element_op_,
-                                       b_element_op_,
-                                       c_element_op_),
+        ArgumentBase(const ADataType* p_a_grid_,
+                     const BDataType* p_b_grid_,
+                     CDataType* p_c_grid_,
+                     index_t M_,
+                     index_t N_,
+                     index_t K_,
+                     index_t StrideA_,
+                     index_t StrideB_,
+                     index_t StrideC_,
+                     index_t StrideScaleB_,
+                     index_t BatchStrideA_,
+                     index_t BatchStrideB_,
+                     index_t BatchStrideC_,
+                     index_t BatchStrideScaleB_,
+                     const BScaleDataType* p_b_scale_grid_,
+                     index_t Batch_,
+                     index_t KBatch_,
+                     AElementwiseOperation a_element_op_,
+                     BElementwiseOperation b_element_op_,
+                     CElementwiseOperation c_element_op_)
+            : GridwiseGemm::Argument(p_a_grid_,
+                                     p_b_grid_,
+                                     p_c_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     StrideA_,
+                                     StrideB_,
+                                     StrideC_,
+                                     StrideScaleB_,
+                                     p_b_scale_grid_,
+                                     KBatch_, // KBatch
+                                     a_element_op_,
+                                     b_element_op_,
+                                     c_element_op_),
               Batch(Batch_),
               compute_ptr_offset_of_batch(
                   BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_)
         {
         }
     };
+    using Argument   = ArgumentBase<GridwiseGemm64>;
+    using Argument32 = ArgumentBase<GridwiseGemm32>;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const ArgumentBase<GridwiseGemm>& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
+            using DeviceArgument = ArgumentBase<GridwiseGemm>;
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
@@ -368,7 +372,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    Argument arg_ = arg;
+                    DeviceArgument arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -380,7 +384,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
                                          sizeof(BDataType) / BPackedSize;
 
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                    ck::utility::RotatingMemWrapper<DeviceArgument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
                     rotating_mem.Print();
 
@@ -437,7 +441,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     {
                         const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                             GridwiseGemm,
-                            Argument,
+                            DeviceArgument,
                             true,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -447,7 +451,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     {
                         const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                             GridwiseGemm,
-                            Argument,
+                            DeviceArgument,
                             true,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -463,7 +467,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -475,7 +479,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -489,7 +493,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -505,7 +509,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -521,7 +525,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -537,7 +541,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -552,7 +556,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -568,7 +572,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -583,7 +587,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -595,7 +599,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -609,7 +613,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -625,7 +629,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -641,7 +645,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -657,7 +661,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -672,7 +676,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -688,7 +692,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                             {
                                 const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                     GridwiseGemm,
-                                    Argument,
+                                    DeviceArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -707,7 +711,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -718,7 +722,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -732,7 +736,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -743,7 +747,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -760,7 +764,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -771,7 +775,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -785,7 +789,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -796,7 +800,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                         {
                             const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                                 GridwiseGemm,
-                                Argument,
+                                DeviceArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -815,7 +819,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     {
                         const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                             GridwiseGemm,
-                            Argument,
+                            DeviceArgument,
                             false,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -825,7 +829,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                     {
                         const auto kernel = kernel_batched_gemm_b_scale_xdl_cshuffle_v3<
                             GridwiseGemm,
-                            Argument,
+                            DeviceArgument,
                             false,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -837,7 +841,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
             return ave_time;
         }
 
-        INVOKER_RUN_IMPL
+        INVOKER_RUN2_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -872,8 +876,28 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(arg));
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic
@@ -1020,7 +1044,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

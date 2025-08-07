@@ -618,7 +618,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
                   type_convert<index_t>(b_grid_desc_bk0_n_bk1_.GetElementSpaceSize()),
                   type_convert<index_t>(c_grid_desc_m_n_.GetElementSpaceSize()),
                   type_convert<index_t>(reduce_grid_desc_m_.GetElementSpaceSize())},
-              block_2_ctile_map_{GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
+              block_2_ctile_map_{GridwiseGemm64::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
@@ -851,10 +851,10 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
         {
             if constexpr(NXdlPerWave64 > 0)
             {
-                return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                                   arg.b_grid_desc_bk0_n_bk1_,
-                                                   arg.c_grid_desc_m_n_,
-                                                   arg.block_2_ctile_map_);
+                return GridwiseGemm64::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                                     arg.b_grid_desc_bk0_n_bk1_,
+                                                     arg.c_grid_desc_m_n_,
+                                                     arg.block_2_ctile_map_);
             }
             else
             {
