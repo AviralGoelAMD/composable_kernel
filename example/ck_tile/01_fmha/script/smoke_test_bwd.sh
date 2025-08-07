@@ -40,6 +40,8 @@ run_fp32_tests_1() {
 
     $EXE -prec=fp32 -mode=0 -b=3072 -h=1 -s=32 -s_k=200 -d=48  -iperm=$perm -operm=$perm -kname=$KNAME $COMMON_ARGS
     $EXE -prec=fp32 -mode=0 -b=1792 -h=1 -s=32 -s_k=200 -d=128 -iperm=$perm -operm=$perm -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp32 -mode=0 -b=64 -h=8 -s=1024 -s_k=1024 -d=48  -iperm=$perm -operm=$perm -kname=$KNAME $COMMON_ARGS
+    $EXE -prec=fp32 -mode=0 -b=32 -h=8 -s=1024 -s_k=1024 -d=128 -iperm=$perm -operm=$perm -kname=$KNAME $COMMON_ARGS
 
     done
 }
