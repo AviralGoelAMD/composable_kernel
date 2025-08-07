@@ -508,7 +508,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             if(get_warp_size() == 64)
             {
-                if constexpr(NXdlPerWave64 > 0)
+                if constexpr(NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
                 {
                     if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                                      b_grid_desc_bk0_n_bk1_,
@@ -524,7 +524,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             }
             else
             {
-                if constexpr(NXdlPerWave32 > 0)
+                if constexpr(NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
                 {
                     if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                                      b_grid_desc_bk0_n_bk1_,
@@ -774,7 +774,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
 
         if(get_warp_size() == 64)
         {
-            if constexpr(NXdlPerWave64 > 0)
+            if constexpr(NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
             {
                 return GridwiseGemm64::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,
@@ -790,7 +790,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else
         {
-            if constexpr(NXdlPerWave32 > 0)
+            if constexpr(NXdlPerWave32 > 0 && &&Gemm1NXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,

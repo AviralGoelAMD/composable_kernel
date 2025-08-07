@@ -670,7 +670,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
 
         if(get_warp_size() == 64)
         {
-            if constexpr(NXdlPerWave64 > 0)
+            if constexpr(NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
             {
                 return GridwiseGemm64::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,
@@ -685,7 +685,7 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         }
         else
         {
-            if constexpr(NXdlPerWave32 > 0)
+            if constexpr(NXdlPerWave32 > 0 && &&Gemm1NXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,
