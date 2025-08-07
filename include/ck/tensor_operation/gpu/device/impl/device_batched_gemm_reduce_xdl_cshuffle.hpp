@@ -625,17 +625,43 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
               reduce_in_element_ops_{reduce_in_element_ops},
               reduce_out_element_ops_{reduce_out_element_ops}
         {
-            if(GridwiseGemm::CheckValidity(a_grid_desc_ak0_m_ak1_,
-                                           b_grid_desc_bk0_n_bk1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+            if(get_warp_size() == 64)
             {
-                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        c_grid_desc_m_n_);
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
+                                                     b_grid_desc_bk0_n_bk1_,
+                                                     c_grid_desc_m_n_,
+                                                     block_2_ctile_map_))
+                    {
+                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                c_grid_desc_m_n_);
 
-                reduce_grid_desc_mblock_mperblock_ =
-                    GridwiseGemm::MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m_);
+                        reduce_grid_desc_mblock_mperblock_ =
+                            GridwiseGemm64::MakeReduceGridDescriptor_MBlock_MPerBlock(
+                                reduce_grid_desc_m_);
+                    }
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
+                                                     b_grid_desc_bk0_n_bk1_,
+                                                     c_grid_desc_m_n_,
+                                                     block_2_ctile_map_))
+                    {
+                        c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm32::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                c_grid_desc_m_n_);
+
+                        reduce_grid_desc_mblock_mperblock_ =
+                            GridwiseGemm32::MakeReduceGridDescriptor_MBlock_MPerBlock(
+                                reduce_grid_desc_m_);
+                    }
+                }
             }
         }
 
@@ -649,12 +675,12 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         CGridDesc_M_N c_grid_desc_m_n_;
         ReduceGridDesc_M reduce_grid_desc_m_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemm64::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemm::ReduceGridDescriptor_MBlock_MPerBlock
+        typename GridwiseGemm64::ReduceGridDescriptor_MBlock_MPerBlock
             reduce_grid_desc_mblock_mperblock_;
         ComputeBasePtrOfStridedBatch compute_base_ptr_of_batch_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
+        typename GridwiseGemm64::DefaultBlock2CTileMap block_2_ctile_map_;
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
@@ -668,8 +694,7 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -822,10 +847,34 @@ struct DeviceBatchedGemmReduce_Xdl_CShuffle : public DeviceGemmReduce<0, ReduceO
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
-                                           arg.b_grid_desc_bk0_n_bk1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                                   arg.b_grid_desc_bk0_n_bk1_,
+                                                   arg.c_grid_desc_m_n_,
+                                                   arg.block_2_ctile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
+                                                     arg.b_grid_desc_bk0_n_bk1_,
+                                                     arg.c_grid_desc_m_n_,
+                                                     arg.block_2_ctile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic

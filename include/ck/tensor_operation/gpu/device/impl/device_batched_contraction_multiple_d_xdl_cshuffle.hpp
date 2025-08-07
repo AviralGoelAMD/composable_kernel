@@ -603,21 +603,21 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
             AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
-        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+        decltype(GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     // block-to-e-tile map
     using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -756,7 +756,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        typename GridwiseGemm::DsGridPointer p_ds_grid_;
+        typename GridwiseGemm64::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
 
         // tensor descriptors for problem definiton
@@ -805,8 +805,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -875,7 +874,8 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
-
+        INVOKER_RUN_IMPL
+#if 0
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(get_warp_size() == 64)
@@ -901,6 +901,7 @@ struct DeviceBatchedContractionMultipleD_Xdl_CShuffle
                 }
             }
         }
+#endif
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

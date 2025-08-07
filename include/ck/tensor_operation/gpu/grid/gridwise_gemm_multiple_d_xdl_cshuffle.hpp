@@ -322,6 +322,7 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
         return true;
     }
 
+    using CDataType = EDataType;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     template <typename AGridDesc_M_K,
