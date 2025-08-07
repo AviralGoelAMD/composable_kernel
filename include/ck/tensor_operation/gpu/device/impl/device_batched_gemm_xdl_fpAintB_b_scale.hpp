@@ -290,7 +290,7 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
         index_t BatchStrideScaleB_;
     };
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
@@ -315,21 +315,21 @@ struct DeviceBatchedGemm_Xdl_CShuffleV3_BScale
                  AElementwiseOperation a_element_op_,
                  BElementwiseOperation b_element_op_,
                  CElementwiseOperation c_element_op_)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
-                                     p_c_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideC_,
-                                     StrideScaleB_,
-                                     p_b_scale_grid_,
-                                     KBatch_, // KBatch
-                                     a_element_op_,
-                                     b_element_op_,
-                                     c_element_op_),
+            : GridwiseGemm64::Argument(p_a_grid_,
+                                       p_b_grid_,
+                                       p_c_grid_,
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideC_,
+                                       StrideScaleB_,
+                                       p_b_scale_grid_,
+                                       KBatch_, // KBatch
+                                       a_element_op_,
+                                       b_element_op_,
+                                       c_element_op_),
               Batch(Batch_),
               compute_ptr_offset_of_batch(
                   BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_)

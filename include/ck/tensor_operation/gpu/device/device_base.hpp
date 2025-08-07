@@ -74,16 +74,16 @@ namespace device {
 
 #define GET_NXDL_PER_WAVE2_IMPL                                                  \
     template <index_t BlockSize_,                                                \
-              index_t MPerBlock,                                                 \
-              index_t NPerBlock,                                                 \
-              index_t MPerXDL,                                                   \
-              index_t NPerXDL,                                                   \
-              index_t MXdlPerWave,                                               \
+              index_t MPerBlock_,                                                \
+              index_t NPerBlock_,                                                \
+              index_t MPerXDL_,                                                  \
+              index_t NPerXDL_,                                                  \
+              index_t MXdlPerWave_,                                              \
               bool IsWave64>                                                     \
     static constexpr auto GetNXdlPerWave2()                                      \
     {                                                                            \
         constexpr index_t Waves  = IsWave64 ? BlockSize_ / 64 : BlockSize_ / 32; \
-        constexpr index_t MWaves = MPerBlock / (MXdlPerWave * MPerXDL);          \
+        constexpr index_t MWaves = MPerBlock_ / (MXdlPerWave_ * MPerXDL_);       \
         static_assert(MWaves > 0);                                               \
                                                                                  \
         constexpr index_t NWaves = Waves / MWaves;                               \
@@ -93,9 +93,9 @@ namespace device {
         }                                                                        \
         else                                                                     \
         {                                                                        \
-            if constexpr(NPerBlock % (NPerXDL * NWaves) == 0)                    \
+            if constexpr(NPerBlock_ % (NPerXDL_ * NWaves) == 0)                  \
             {                                                                    \
-                return NPerBlock / (NWaves * NPerXDL);                           \
+                return NPerBlock_ / (NWaves * NPerXDL_);                         \
             }                                                                    \
             else                                                                 \
             {                                                                    \
