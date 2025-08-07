@@ -370,21 +370,21 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
             AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
-        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+        decltype(GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     // block-to-e-tile map
     using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -413,12 +413,12 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
               ds_grid_desc_m_n_{},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N(e_ms_ns_lengths, e_ms_ns_strides)},
               a_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+                  GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+                  GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               ds_grid_desc_mblock_mperblock_nblock_nperblock_{},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
@@ -436,19 +436,45 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
             });
 
             // populate desc for Ds/E
-            if(GridwiseGemm::CheckValidity(a_grid_desc_m_k_,
-                                           b_grid_desc_n_k_,
-                                           ds_grid_desc_m_n_,
-                                           e_grid_desc_m_n_,
-                                           block_2_etile_map_))
+            if(get_warp_size() == 64)
             {
-                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        e_grid_desc_m_n_);
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k_,
+                                                     b_grid_desc_n_k_,
+                                                     ds_grid_desc_m_n_,
+                                                     e_grid_desc_m_n_,
+                                                     block_2_etile_map_))
+                    {
+                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e_grid_desc_m_n_);
 
-                ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        ds_grid_desc_m_n_);
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                ds_grid_desc_m_n_);
+                    }
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k_,
+                                                     b_grid_desc_n_k_,
+                                                     ds_grid_desc_m_n_,
+                                                     e_grid_desc_m_n_,
+                                                     block_2_etile_map_))
+                    {
+                        e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                e_grid_desc_m_n_);
+
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                            GridwiseGemm32::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                ds_grid_desc_m_n_);
+                    }
+                }
             }
 
             // for sanity check of vector memory access
@@ -481,7 +507,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        typename GridwiseGemm::DsGridPointer p_ds_grid_;
+        typename GridwiseGemm64::DsGridPointer p_ds_grid_;
         EDataType* p_e_grid_;
 
         // tensor descriptors for problem definiton
@@ -523,8 +549,7 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -610,14 +635,33 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         {
             return false;
         }
-
-        if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                        arg.b_grid_desc_n_k_,
-                                        arg.ds_grid_desc_m_n_,
-                                        arg.e_grid_desc_m_n_,
-                                        arg.block_2_etile_map_))
+        if(get_warp_size() == 64)
         {
-            return false;
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                if(!GridwiseGemm64::CheckValidity(arg.a_grid_desc_m_k_,
+                                                  arg.b_grid_desc_n_k_,
+                                                  arg.ds_grid_desc_m_n_,
+                                                  arg.e_grid_desc_m_n_,
+                                                  arg.block_2_etile_map_))
+                {
+                    return false;
+                }
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                if(!GridwiseGemm32::CheckValidity(arg.a_grid_desc_m_k_,
+                                                  arg.b_grid_desc_n_k_,
+                                                  arg.ds_grid_desc_m_n_,
+                                                  arg.e_grid_desc_m_n_,
+                                                  arg.block_2_etile_map_))
+                {
+                    return false;
+                }
+            }
         }
 
         // check vector access
