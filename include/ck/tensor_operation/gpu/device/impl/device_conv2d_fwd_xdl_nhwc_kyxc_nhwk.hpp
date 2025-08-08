@@ -438,8 +438,7 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -580,8 +579,30 @@ struct DeviceConv2dFwdXdl_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_Wo_K
         }
 
         // Gridwise GEMM size
-        return GridwiseGemm::CheckValidity(
-            arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(
+                    arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    arg.a_grid_desc_k0_m_k1_, arg.b_grid_desc_k0_n_k1_, arg.c_grid_desc_m_n_);
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

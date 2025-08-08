@@ -322,6 +322,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     template <typename AGridDesc_K0_M_K1, typename BGridDesc_K0_N_K1, typename CGridDesc_M_N>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,

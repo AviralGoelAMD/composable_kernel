@@ -46,9 +46,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const CElementwiseOperation c_element_op,
         const Block2CTileMap block_2_ctile_map)
 {
-#ifdefined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -234,6 +234,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r1
                          c_block_size * sizeof(FloatCShuffle));
     }
 
+    using CDataType = FloatC;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}

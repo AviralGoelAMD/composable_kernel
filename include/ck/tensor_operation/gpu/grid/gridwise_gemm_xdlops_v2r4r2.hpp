@@ -434,6 +434,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2
                          c_block_size * sizeof(FloatC));
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
