@@ -147,7 +147,9 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -215,7 +217,15 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+
+            return (NXdlPerWave64 > 0) && GridwiseGemm64::CheckValidity(arg);
+        }
+        else
+        {
+            return (NXdlPerWave32 > 0) && GridwiseGemm32::CheckValidity(arg);
+        }
     }
 
     // polymorphic

@@ -36,8 +36,8 @@ template <
     ck::index_t NPerBlock,
     ck::index_t K0PerBlock,
     ck::index_t K1,
-    ck::index_t MPerXdl,
-    ck::index_t NPerXdl,
+    ck::index_t MPerXDL,
+    ck::index_t NPerXDL,
     ck::index_t MXdlPerWave,
     ck::index_t NXdlPerWave,
     typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -456,8 +456,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         K0PerBlock * K1,
         K1, // AK1
         K1, // BK1
-        MPerXdl,
-        NPerXdl,
+        MPerXDL,
+        NPerXDL,
         MXdlPerWave,
         NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -541,26 +541,46 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
             c_grid_desc_m_n_     = descs[I2];
 
             block_2_ctile_map_ = Block2CTileMap{c_grid_desc_m_n_};
-
-            if(GridwiseGemm::CheckValidity(a_grid_desc_k0_m_k1_,
-                                           b_grid_desc_k0_n_k1_,
-                                           c_grid_desc_m_n_,
-                                           block_2_ctile_map_))
+            if(get_warp_size() == 64)
             {
-                c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
-                    GridwiseGemm::
-                        MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
-                            c_grid_desc_m_n_);
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if(GridwiseGemm64::CheckValidity(a_grid_desc_k0_m_k1_,
+                                                     b_grid_desc_k0_n_k1_,
+                                                     c_grid_desc_m_n_,
+                                                     block_2_ctile_map_))
+                    {
+                        c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
+                            GridwiseGemm64::
+                                MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                    c_grid_desc_m_n_);
+                    }
+                }
+                else
+                {
+                    if constexpr(NXdlPerWave32 > 0)
+                    {
+                        if(GridwiseGemm32::CheckValidity(a_grid_desc_k0_m_k1_,
+                                                         b_grid_desc_k0_n_k1_,
+                                                         c_grid_desc_m_n_,
+                                                         block_2_ctile_map_))
+                        {
+                            c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_ =
+                                GridwiseGemm32::
+                                    MakeCGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl(
+                                        c_grid_desc_m_n_);
+                        }
+                    }
+                }
             }
         }
-
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
         CDataType* p_c_grid_;
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::
+        typename GridwiseGemm64::
             CGridDescriptor_MBlock_MXdlPerWave_MWaveMPerXdl_NBlock_NXdlPerWave_NWaveNPerXdl
                 c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_;
         Block2CTileMap block_2_ctile_map_;
@@ -586,8 +606,7 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -793,10 +812,21 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
         }
 
         // Gridwise GEMM size
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.block_2_ctile_map_);
+        if(get_warp_size() == 64)
+        {
+
+            return (NXdlPerWave64 > 0) && GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                                                        arg.b_grid_desc_k0_n_k1_,
+                                                                        arg.c_grid_desc_m_n_,
+                                                                        arg.block_2_ctile_map_);
+        }
+        else
+        {
+            return (NXdlPerWave32 > 0) && GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                                                        arg.b_grid_desc_k0_n_k1_,
+                                                                        arg.c_grid_desc_m_n_,
+                                                                        arg.block_2_ctile_map_);
+        }
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override
