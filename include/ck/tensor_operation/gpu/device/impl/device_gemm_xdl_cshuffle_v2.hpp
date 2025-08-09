@@ -214,7 +214,28 @@ struct DeviceGemm_Xdl_CShuffleV2 : public DeviceGemm<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(arg));
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic

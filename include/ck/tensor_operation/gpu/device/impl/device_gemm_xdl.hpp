@@ -214,12 +214,25 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         }
         if(get_warp_size() == 64)
         {
-            return (NXdlPerWave64 > 0) && GridwiseGemm64::CheckValidity(karg);
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(karg);
+            }
+            else
+            {
+                return false;
+            }
         }
         else
         {
-            return (NXdlPerWave32 > 0) &&
-                   GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(karg));
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(karg));
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 

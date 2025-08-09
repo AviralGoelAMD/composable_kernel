@@ -220,12 +220,25 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
 
         if(get_warp_size() == 64)
         {
-
-            return (NXdlPerWave64 > 0) && GridwiseGemm64::CheckValidity(arg);
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+            else
+            {
+                return false;
+            }
         }
         else
         {
-            return (NXdlPerWave32 > 0) && GridwiseGemm32::CheckValidity(arg);
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(arg));
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 

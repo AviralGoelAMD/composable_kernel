@@ -488,7 +488,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             const index_t N       = gemm_desc_kernel_arg_[0].N_;
 
             const auto e_grid_desc_m_n =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                GridwiseGemm64::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
                     AverM, N, StrideE);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_m_n, k_batch_};
@@ -559,7 +559,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 });
 
                 const auto e_grid_desc_m_n =
-                    GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                    GridwiseGemm64::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
                         AverM, N, StrideE);
 
                 // block-to-e-tile map
@@ -575,17 +575,55 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
                 grid_size_ += grid_size_grp_;
 
                 // check block-to-E-tile
+
                 if(!local_b2c_tile_map.CheckValidity(e_grid_desc_m_n))
                 {
                     throw std::runtime_error("wrong! block_2_etile_map validation failed");
                 }
 
-                if(!GridwiseGemm::
-                       template CheckValidity<ALayout, BLayout, DsLayout, ELayout, GemmSpec>(
-                           AverM, N, K, StrideA, StrideB, StrideDs, StrideE, 1))
+                if(get_warp_size() == 64)
                 {
-                    throw std::runtime_error(
-                        "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
+                    if constexpr(NXdlPerWave64 > 0)
+                    {
+                        if(!GridwiseGemm64::template CheckValidity<ALayout,
+                                                                   BLayout,
+                                                                   DsLayout,
+                                                                   ELayout,
+                                                                   GemmSpec>(
+                               AverM, N, K, StrideA, StrideB, StrideDs, StrideE, 1))
+                        {
+                            throw std::runtime_error(
+                                "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid "
+                                "setting");
+                        }
+                    }
+                    else
+                    {
+                        throw std::runtime_error(
+                            "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
+                    }
+                }
+                else
+                {
+                    if constexpr(NXdlPerWave32 > 0)
+                    {
+                        if(!GridwiseGemm32::template CheckValidity<ALayout,
+                                                                   BLayout,
+                                                                   DsLayout,
+                                                                   ELayout,
+                                                                   GemmSpec>(
+                               AverM, N, K, StrideA, StrideB, StrideDs, StrideE, 1))
+                        {
+                            throw std::runtime_error(
+                                "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid "
+                                "setting");
+                        }
+                    }
+                    else
+                    {
+                        throw std::runtime_error(
+                            "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
+                    }
                 }
 
                 gemm_desc_kernel_arg_.push_back(GemmBiasTransKernelArg{
@@ -606,7 +644,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
             }
 
             const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                GridwiseGemm64::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
                     sum_of_m, gemm_desc_kernel_arg_[0].N_, gemm_desc_kernel_arg_[0].StrideE_);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, 1};
@@ -641,8 +679,7 @@ struct DeviceGroupedGemm_Xdl_Fixed_NK : public DeviceGroupedGemmFixedNK<ALayout,
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             bool has_main_k_block_loop = true;
 

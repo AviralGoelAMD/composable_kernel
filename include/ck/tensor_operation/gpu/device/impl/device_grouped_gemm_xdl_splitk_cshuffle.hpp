@@ -207,13 +207,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using CGridDesc_M_N = typename GridwiseGemm::CGridDesc_M_N;
+    using CGridDesc_M_N = typename GridwiseGemm64::CGridDesc_M_N;
     using Block2ETileMapKSplit =
         BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, CGridDesc_M_N>;
     // Block2CTileMap configuration parameter.
     static constexpr index_t B2E_M01 = 8;
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
-    using KernelArgument             = typename GridwiseGemm::Argument;
+    using KernelArgument             = typename GridwiseGemm64::Argument;
     using PassThrough                = ck::tensor_operation::element_wise::PassThrough;
     struct GemmTransKernelArg
     {
@@ -286,12 +286,13 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
                 const index_t stride_b = gemm_descs[i].stride_B_;
                 const index_t stride_c = gemm_descs[i].stride_C_;
 
-                const index_t m_padded  = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded  = GridwiseGemm::CalculateNPadded(N);
-                const index_t k_padded  = GridwiseGemm::CalculateKPadded(K, K_BATCH);
-                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(K, K_BATCH);
+                const index_t m_padded  = GridwiseGemm64::CalculateMPadded(M);
+                const index_t n_padded  = GridwiseGemm64::CalculateNPadded(N);
+                const index_t k_padded  = GridwiseGemm64::CalculateKPadded(K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(K, K_BATCH);
 
-                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_c);
+                const auto c_grid_desc_m_n =
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, stride_c);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -341,11 +342,11 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t k_padded  = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
-                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(karg.K, K_BATCH);
+                const index_t k_padded  = GridwiseGemm64::CalculateKPadded(karg.K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(karg.K, K_BATCH);
 
                 const auto c_grid_desc_m_n =
-                    GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -383,7 +384,7 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
     struct Invoker : public BaseInvoker
     {
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{},
                      hipStream_t cpy_stream            = nullptr,
                      hipEvent_t cpy_event              = nullptr)
@@ -394,7 +395,8 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
 
             for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
             {
-                const auto& karg = arg.gemm_kernel_args_[i].karg_;
+                const auto& karg = reinterpret_cast<const typename GridwiseGemm::Argument&>(
+                    arg.gemm_kernel_args_[i].karg_);
                 if(stream_config.log_level_ > 0)
                 {
                     karg.Print();
@@ -544,7 +546,34 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
             return ave_time;
         }
 
-        INVOKER_RUN_IMPL
+        float Run(const Argument& arg,
+                  const StreamConfig& stream_config = StreamConfig{},
+                  hipStream_t cpy_stream            = nullptr,
+                  hipEvent_t cpy_event              = nullptr)
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config, cpy_stream, cpy_event);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config, cpy_stream, cpy_event);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+        }
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -585,11 +614,35 @@ struct DeviceGroupedGemmXdlSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayo
         }
 
         bool supported = true;
+        bool isWave64  = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
-            const auto& a = arg.gemm_kernel_args_[i].karg_;
+            const auto& a        = arg.gemm_kernel_args_[i].karg_;
+            bool group_arg_valid = true;
+            if(isWave64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    group_arg_valid = GridwiseGemm64::CheckValidity(a);
+                }
+                else
+                {
+                    group_arg_valid = false;
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    group_arg_valid = GridwiseGemm32::CheckValidity(
+                        reinterpret_cast<const typename GridwiseGemm32::Argument&>(a));
+                }
+                else
+                {
+                    group_arg_valid = false;
+                }
+            }
 
-            bool group_arg_valid = GridwiseGemm::CheckValidity(a);
             if(not group_arg_valid)
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))

@@ -130,10 +130,14 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        void Print(const Argument& karg) { karg.Print(); }
+        template <typename Argument_>
+        void Print(const Argument_& karg)
+        {
+            karg.Print();
+        }
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const typename GridwiseGemm::Argument& karg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
@@ -227,15 +231,25 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     size_t GetWorkSpaceSize(const BaseArgument* pArg) const override
     {
         const Argument* p_arg = dynamic_cast<const Argument*>(pArg);
-        if constexpr(GridwiseGemm::Block2CTileMap::ReductionStrategy ==
-                     StreamKReductionStrategy::Reduction)
+        if(get_warp_size() == 64)
         {
-            return p_arg->block_mapping.get_workspace_size(sizeof(typename GridwiseGemm::FloatAcc));
+            if constexpr(GridwiseGemm64::Block2CTileMap::ReductionStrategy ==
+                         StreamKReductionStrategy::Reduction)
+            {
+                return p_arg->block_mapping.get_workspace_size(
+                    sizeof(typename GridwiseGemm64::FloatAcc));
+            }
         }
         else
         {
-            return 0;
+            if constexpr(GridwiseGemm32::Block2CTileMap::ReductionStrategy ==
+                         StreamKReductionStrategy::Reduction)
+            {
+                return p_arg->block_mapping.get_workspace_size(
+                    sizeof(typename GridwiseGemm32::FloatAcc));
+            }
         }
+        return 0;
     }
 
     void SetWorkSpacePointer(BaseArgument* pArg,
@@ -259,7 +273,29 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
         {
             return false;
         }
-        return GridwiseGemm::CheckValidity(karg);
+
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(karg);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(karg));
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic
@@ -282,12 +318,38 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                              CElementwiseOperation,
                              uint32_t NumSKBlocks = 0xffffffff)
     {
-        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
-        int occupancy, num_cu;
+        int num_cu;
         hipError_t rtn;
-        rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
-        hip_check_error(rtn);
+        int occupancy = [&]() {
+            int occupancy_ = 0;
+            if(get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm64>;
+                    rtn               = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                        &occupancy_,
+                        kernel,
+                        BlockSize,
+                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                    hip_check_error(rtn);
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm32>;
+                    rtn               = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                        &occupancy_,
+                        kernel,
+                        BlockSize,
+                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                    hip_check_error(rtn);
+                }
+            }
+            return occupancy_;
+        }();
 
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
@@ -328,12 +390,39 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
                                                       CElementwiseOperation,
                                                       index_t NumSKBlocks = 0) override
     {
-        const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm>;
-        int occupancy, num_cu;
+        int num_cu;
         hipError_t rtn;
-        rtn = hipOccupancyMaxActiveBlocksPerMultiprocessor(
-            &occupancy, kernel, BlockSize, GridwiseGemm::GetSharedMemoryNumberOfByte());
-        hip_check_error(rtn);
+
+        int occupancy = [&]() {
+            int occupancy_ = 0;
+            if(get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm64>;
+                    rtn               = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                        &occupancy_,
+                        kernel,
+                        BlockSize,
+                        GridwiseGemm64::GetSharedMemoryNumberOfByte());
+                    hip_check_error(rtn);
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    const auto kernel = kernel_gemm_xdlops_streamk<GridwiseGemm32>;
+                    rtn               = hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                        &occupancy_,
+                        kernel,
+                        BlockSize,
+                        GridwiseGemm32::GetSharedMemoryNumberOfByte());
+                    hip_check_error(rtn);
+                }
+            }
+            return occupancy_;
+        }();
 
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
@@ -364,7 +453,11 @@ struct DeviceGemmXdlStreamK : public DeviceGemmStreamK<ALayout,
     }
 
     // polymorphic
-    std::string GetTypeString() const override { return GridwiseGemm::GetTypeString(); }
+    std::string GetTypeString() const override
+    {
+        return get_warp_size() == 64 ? GridwiseGemm64::GetTypeString()
+                                     : GridwiseGemm32::GetTypeString();
+    }
 };
 
 } // namespace device

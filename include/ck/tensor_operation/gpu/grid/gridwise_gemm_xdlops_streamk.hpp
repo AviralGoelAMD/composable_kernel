@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -381,7 +381,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
     GetCBlockDescriptor_MBlock_MPerShuffle_NBlock_NPerShuffle()
     {
         constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t NWave = NRepeat * NPerXDL == 0 ? 1 : NPerBlock / (NRepeat * NPerXDL);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1,
@@ -394,7 +394,7 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
     GetCBlockDescriptor_MShuffleRepeat_MPerShuffle_NShuffleRepeat_NPerShuffle()
     {
         constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t NWave = NRepeat * NPerXDL == 0 ? 1 : NPerBlock / (NRepeat * NPerXDL);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(Number<MRepeat / CShuffleMRepeatPerShuffle>{},

@@ -508,7 +508,8 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
+              c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
+              c_grid_desc32_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_{},
               block_2_ctile_map_{},
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
@@ -645,22 +646,22 @@ struct DeviceConv2dFwdXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_N_Ho_W
                 std::cout
                     << "arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_"
                        "nwavenperxdl_{ "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I0)
                     << ", "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I1)
                     << ", "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I2)
                     << ", "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I3)
                     << ", "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I4)
                     << ", "
-                    << arg.c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
+                    << arg.c_grid_desc64_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl_
                            .GetLength(I5)
                     << "}" << std::endl;
             }

@@ -282,7 +282,7 @@ struct GridwiseGemmSplitKMultipleD_xdl_cshuffle
         return BlockToCTileMap_KSplit_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
             e_grid_desc_m_n, 8, split_k);
     }
-
+    using CDataType = EDataType;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
