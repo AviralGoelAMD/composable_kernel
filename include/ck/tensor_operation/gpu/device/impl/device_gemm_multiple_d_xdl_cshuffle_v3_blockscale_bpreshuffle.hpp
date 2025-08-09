@@ -153,8 +153,8 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm64::Argument;
-
+    using Argument   = typename GridwiseGemm64::Argument;
+    using Argument32 = typename GridwiseGemm32::Argument;
     int GetPreShuffleParameters() override { return NPerXDL; }
 
     // Invoker

@@ -142,7 +142,8 @@ struct DeviceGemm_Xdl_CShuffle : public DeviceGemm<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm64::Argument;
+    using Argument   = typename GridwiseGemm64::Argument;
+    using Argument32 = typename GridwiseGemm32::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker

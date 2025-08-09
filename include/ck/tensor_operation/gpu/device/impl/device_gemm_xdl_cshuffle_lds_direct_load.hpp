@@ -123,7 +123,8 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm64::Argument;
+    using Argument   = typename GridwiseGemm64::Argument;
+    using Argument32 = typename GridwiseGemm32::Argument;
 
     struct Invoker : public BaseInvoker
     {
@@ -275,11 +276,23 @@ struct DeviceGemm_Xdl_CShuffle_LdsDirectLoad : public DeviceGemm<ALayout,
             }
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                           arg.b_grid_desc_n_k_,
-                                           arg.ds_grid_desc_m_n_,
-                                           arg.e_grid_desc_m_n_,
-                                           arg.block_2_etile_map_);
+        if(get_warp_size() == 64)
+        {
+
+            return (NXdlPerWave64 > 0) && GridwiseGemm64::CheckValidity(arg.a_grid_desc_m_k_,
+                                                                        arg.b_grid_desc_n_k_,
+                                                                        arg.ds_grid_desc_m_n_,
+                                                                        arg.e_grid_desc_m_n_,
+                                                                        arg.block_2_etile_map_);
+        }
+        else
+        {
+            return (NXdlPerWave64 > 0) && GridwiseGemm32::CheckValidity(arg.a_grid_desc_m_k_,
+                                                                        arg.b_grid_desc_n_k_,
+                                                                        arg.ds_grid_desc_m_n_,
+                                                                        arg.e_grid_desc_m_n_,
+                                                                        arg.block_2_etile_map_);
+        }
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

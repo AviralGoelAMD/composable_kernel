@@ -239,7 +239,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
                          c_block_size * sizeof(FloatC));
     }
 
-    using CDatatType = FloatC;
+    using CDataType = FloatC;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
@@ -303,7 +303,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v3r2
         const auto NBlock = N / NPerBlock;
 
         constexpr index_t MWave = MPerBlock / (MXdlPerWave * MPerXdl);
-        constexpr index_t NWave = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t NWave =
+            NXdlPerWave * NPerXdl == 0 ? 1 : NPerBlock / (NXdlPerWave * NPerXdl);
 
         const auto c_grid_desc_mblock_mxdlperwave_mwavemperxdl_nblock_nxdlperwave_nwavenperxdl =
             transform_tensor_descriptor(

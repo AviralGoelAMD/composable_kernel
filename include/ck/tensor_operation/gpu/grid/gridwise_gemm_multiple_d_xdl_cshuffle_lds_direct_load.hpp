@@ -428,6 +428,7 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     using Block2ETileMap = remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
+    using CDataType = EDataType;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
