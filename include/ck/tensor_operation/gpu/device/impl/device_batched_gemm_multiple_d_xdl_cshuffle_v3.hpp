@@ -283,7 +283,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         {
             std::array<long_index_t, NumDTensor> ds_offset_;
 
-            static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+            static_for<0, NumDTensor, 1>{}([&](auto i) {
                 ds_offset_[i] = static_cast<long_index_t>(BatchStrideDs_[i]) * g_idx;
             });
 
@@ -302,7 +302,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         index_t BatchStrideC_;
     };
 
-    struct Argument : public GridwiseGemm::Argument
+    struct Argument : public GridwiseGemm64::Argument
     {
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
@@ -328,21 +328,21 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                  BElementwiseOperation b_element_op_,
                  CElementwiseOperation c_element_op_,
                  index_t KBatch_)
-            : GridwiseGemm::Argument{p_a_grid_,
-                                     p_b_grid_,
-                                     p_ds_grid_,
-                                     p_e_grid_,
-                                     M_,
-                                     N_,
-                                     K_,
-                                     StrideA_,
-                                     StrideB_,
-                                     StrideDs_,
-                                     StrideE_,
-                                     KBatch_,
-                                     a_element_op_,
-                                     b_element_op_,
-                                     c_element_op_},
+            : GridwiseGemm64::Argument{p_a_grid_,
+                                       p_b_grid_,
+                                       p_ds_grid_,
+                                       p_e_grid_,
+                                       M_,
+                                       N_,
+                                       K_,
+                                       StrideA_,
+                                       StrideB_,
+                                       StrideDs_,
+                                       StrideE_,
+                                       KBatch_,
+                                       a_element_op_,
+                                       b_element_op_,
+                                       c_element_op_},
               Batch{Batch_},
               compute_ptr_offset_of_batch{
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
@@ -372,31 +372,69 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                 }
             }();
 
-            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            if(get_warp_size() == 64)
             {
-                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                    &max_occupancy,
-                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
-                        GridwiseGemm,
-                        Argument,
-                        true,
-                        InMemoryDataOperationEnum::AtomicAdd,
-                        minimum_occupancy>,
-                    BlockSize,
-                    dynamic_smem_size));
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                    {
+                        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                            &max_occupancy,
+                            kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
+                                GridwiseGemm64,
+                                Argument,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>,
+                            BlockSize,
+                            dynamic_smem_size));
+                    }
+                    else
+                    {
+                        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                            &max_occupancy,
+                            kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
+                                GridwiseGemm64,
+                                Argument,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>,
+                            BlockSize,
+                            dynamic_smem_size));
+                    }
+                }
             }
             else
             {
-                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
-                    &max_occupancy,
-                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
-                        GridwiseGemm,
-                        Argument,
-                        true,
-                        InMemoryDataOperationEnum::AtomicAdd,
-                        minimum_occupancy>,
-                    BlockSize,
-                    dynamic_smem_size));
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+                    {
+                        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                            &max_occupancy,
+                            kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
+                                GridwiseGemm32,
+                                Argument,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>,
+                            BlockSize,
+                            dynamic_smem_size));
+                    }
+                    else
+                    {
+                        hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                            &max_occupancy,
+                            kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
+                                GridwiseGemm32,
+                                Argument,
+                                true,
+                                InMemoryDataOperationEnum::AtomicAdd,
+                                minimum_occupancy>,
+                            BlockSize,
+                            dynamic_smem_size));
+                    }
+                }
             }
 
             max_occupancy_ = std::max(1, max_occupancy);
@@ -408,8 +446,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
     struct Invoker : public BaseInvoker
     {
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -965,8 +1002,20 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(arg);
+            }
+        }
     }
 
     // polymorphic
@@ -1110,7 +1159,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

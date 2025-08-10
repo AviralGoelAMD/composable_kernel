@@ -579,10 +579,15 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         // The oversubscription factor for the number of blocks that can simultaneously reside on
         // GPU.
         static constexpr int BLOCK_SUBSCRIPTION_FACTOR = 1;
-        static constexpr int BLOCK_WAVES               = BlockSize / get_warp_size();
-        static constexpr int CU_SIMDS                  = 4;
+        // static constexpr int BLOCK_WAVES               = BlockSize / get_warp_size();
+        static constexpr int CU_SIMDS = 4;
         // Assume we want to have at most 2 waves per SIMD
-        static constexpr int CU_BLOCKS = math::integer_divide_floor(2 * CU_SIMDS, BLOCK_WAVES);
+        // static constexpr int CU_BLOCKS = math::integer_divide_floor(2 * CU_SIMDS, BLOCK_WAVES);
+        static int GetCuBlocks()
+        {
+            int BLOCK_WAVES = BlockSize / get_warp_size();
+            return math::integer_divide_floor(2 * CU_SIMDS, BLOCK_WAVES);
+        }
     };
 
     // Invoker
@@ -601,6 +606,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
+        template <typename GridwiseGemm>
         float Run(const Argument& arg,
                   const void* dev_gemm_args,
                   const StreamConfig& stream_config = StreamConfig{})
@@ -614,7 +620,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             }
 
             float ave_time = 0;
-            ave_time       = DispatchKernel(arg, dev_gemm_args, stream_config);
+            ave_time       = DispatchKernel<GridwiseGemm>(arg, dev_gemm_args, stream_config);
 
             return ave_time;
         }
@@ -633,8 +639,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_dev_gemm_args_ == nullptr)
             {
@@ -644,7 +649,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                 throw std::runtime_error(err.str());
             }
 
-            return Run(arg, arg.p_dev_gemm_args_, stream_config);
+            return Run<GridwiseGemm>(arg, arg.p_dev_gemm_args_, stream_config);
         }
 
         INVOKER_RUN_IMPL
@@ -656,6 +661,7 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         }
 
         private:
+        template <typename GridwiseGemm>
         float DispatchKernel(const Argument& arg,
                              const void* dev_gemm_args,
                              const StreamConfig& stream_config) const
@@ -698,11 +704,11 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             {
                 std::cout << "MaxActiveBlocksPerCU: " << occ_num_blocks
                           << ", available CUs count: " << cu_count << ", occup. grid size: "
-                          << ck::math::min(occ_num_blocks, KernelConfig::CU_BLOCKS) * cu_count
+                          << ck::math::min(occ_num_blocks, KernelConfig::GetCuBlocks()) * cu_count
                           << std::endl;
             }
 
-            return cu_count * ck::math::min(occ_num_blocks, KernelConfig::CU_BLOCKS);
+            return cu_count * ck::math::min(occ_num_blocks, KernelConfig::GetCuBlocks());
         }
 
         template <typename KernelFunction>
@@ -750,28 +756,12 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
         bool supported = true;
 
         constexpr index_t k_batch = 1;
+        bool isWave64             = get_warp_size() == 64;
         for(index_t i = 0; i < arg.group_count_; ++i)
         {
             std::array<const void*, NumDTensor> placeholder_p_ds_grid{};
             std::array<index_t, NumDTensor> stride_Ds;
             std::copy_n(arg.gemm_descs_[i].stride_Ds_.begin(), NumDTensor, stride_Ds.begin());
-            using GridArg = typename GridwiseGemm::Argument;
-            GridArg gridwise_arg(nullptr,               // p_a_grid,
-                                 nullptr,               // p_b_grid,
-                                 placeholder_p_ds_grid, // p_ds_grid,
-                                 nullptr,               // p_e_grid  ,
-                                 arg.gemm_descs_[i].M_,
-                                 arg.gemm_descs_[i].N_,
-                                 arg.gemm_descs_[i].K_,
-                                 arg.gemm_descs_[i].stride_A_,
-                                 arg.gemm_descs_[i].stride_B_,
-                                 stride_Ds,
-                                 arg.gemm_descs_[i].stride_C_,
-                                 k_batch,
-                                 arg.a_element_op_,
-                                 arg.b_element_op_,
-                                 arg.cde_element_op_);
-
             if((arg.gemm_descs_[i].K_ % AK1 != 0 || arg.gemm_descs_[i].K_ % BK1 != 0) &&
                !(GemmSpec == GemmSpecialization::MKPadding ||
                  GemmSpec == GemmSpecialization::NKPadding ||
@@ -780,8 +770,62 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
             {
                 return false;
             }
+            if(isWave64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    using GridArg = typename GridwiseGemm64::Argument;
+                    GridArg gridwise_arg(nullptr,               // p_a_grid,
+                                         nullptr,               // p_b_grid,
+                                         placeholder_p_ds_grid, // p_ds_grid,
+                                         nullptr,               // p_e_grid  ,
+                                         arg.gemm_descs_[i].M_,
+                                         arg.gemm_descs_[i].N_,
+                                         arg.gemm_descs_[i].K_,
+                                         arg.gemm_descs_[i].stride_A_,
+                                         arg.gemm_descs_[i].stride_B_,
+                                         stride_Ds,
+                                         arg.gemm_descs_[i].stride_C_,
+                                         k_batch,
+                                         arg.a_element_op_,
+                                         arg.b_element_op_,
+                                         arg.cde_element_op_);
 
-            supported = supported && GridwiseGemm::CheckValidity(gridwise_arg);
+                    supported = supported && GridwiseGemm64::CheckValidity(gridwise_arg);
+                }
+                else
+                {
+                    supported = false;
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    using GridArg = typename GridwiseGemm32::Argument;
+                    GridArg gridwise_arg(nullptr,               // p_a_grid,
+                                         nullptr,               // p_b_grid,
+                                         placeholder_p_ds_grid, // p_ds_grid,
+                                         nullptr,               // p_e_grid  ,
+                                         arg.gemm_descs_[i].M_,
+                                         arg.gemm_descs_[i].N_,
+                                         arg.gemm_descs_[i].K_,
+                                         arg.gemm_descs_[i].stride_A_,
+                                         arg.gemm_descs_[i].stride_B_,
+                                         stride_Ds,
+                                         arg.gemm_descs_[i].stride_C_,
+                                         k_batch,
+                                         arg.a_element_op_,
+                                         arg.b_element_op_,
+                                         arg.cde_element_op_);
+
+                    supported = supported && GridwiseGemm32::CheckValidity(gridwise_arg);
+                }
+                else
+                {
+                    supported = false;
+                }
+            }
         }
 
         return supported;
@@ -790,6 +834,67 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
     bool IsSupportedArgument(const BaseArgument* p_arg) override
     {
         return IsSupportedArgument(*dynamic_cast<const Argument*>(p_arg));
+    }
+
+    static int GetKernelOccupancy()
+    {
+        int occupancy = 0;
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm64,
+                                                                       KernelArguments,
+                                                                       GemmSpec,
+                                                                       ADataType,
+                                                                       BDataType,
+                                                                       DsDataType,
+                                                                       EDataType,
+                                                                       ALayout,
+                                                                       BLayout,
+                                                                       DsLayout,
+                                                                       ELayout,
+                                                                       KPerBlock,
+                                                                       OffsettedLocalBlock2ETileMap,
+                                                                       Block2ETileMap,
+                                                                       AElementwiseOperation,
+                                                                       BElementwiseOperation,
+                                                                       CDEElementwiseOperation,
+                                                                       BlkGemmPipeSched,
+                                                                       BlkGemmPipelineVer>;
+                hip_check_error(
+                    hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+            }
+        }
+        else
+        {
+
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm32,
+                                                                       KernelArguments,
+                                                                       GemmSpec,
+                                                                       ADataType,
+                                                                       BDataType,
+                                                                       DsDataType,
+                                                                       EDataType,
+                                                                       ALayout,
+                                                                       BLayout,
+                                                                       DsLayout,
+                                                                       ELayout,
+                                                                       KPerBlock,
+                                                                       OffsettedLocalBlock2ETileMap,
+                                                                       Block2ETileMap,
+                                                                       AElementwiseOperation,
+                                                                       BElementwiseOperation,
+                                                                       CDEElementwiseOperation,
+                                                                       BlkGemmPipeSched,
+                                                                       BlkGemmPipelineVer>;
+                hip_check_error(
+                    hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+            }
+        }
+        return occupancy;
     }
 
     static auto MakeArgument(std::vector<const void*>& p_As,
@@ -801,28 +906,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                              BElementwiseOperation b_elementwise_op,
                              CDEElementwiseOperation cde_elementwise_op)
     {
-        const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm,
-                                                               KernelArguments,
-                                                               GemmSpec,
-                                                               ADataType,
-                                                               BDataType,
-                                                               DsDataType,
-                                                               EDataType,
-                                                               ALayout,
-                                                               BLayout,
-                                                               DsLayout,
-                                                               ELayout,
-                                                               KPerBlock,
-                                                               OffsettedLocalBlock2ETileMap,
-                                                               Block2ETileMap,
-                                                               AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CDEElementwiseOperation,
-                                                               BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+        int occupancy = GetKernelOccupancy();
+        int num_cu;
 
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
@@ -852,28 +937,8 @@ struct DeviceGroupedGemmMultipleDXdlCShuffleTileLoop
                         BElementwiseOperation b_elementwise_op,
                         CDEElementwiseOperation cde_elementwise_op) override
     {
-        const auto kernel = kernel_grouped_gemm_multiple_d_xdl<GridwiseGemm,
-                                                               KernelArguments,
-                                                               GemmSpec,
-                                                               ADataType,
-                                                               BDataType,
-                                                               DsDataType,
-                                                               EDataType,
-                                                               ALayout,
-                                                               BLayout,
-                                                               DsLayout,
-                                                               ELayout,
-                                                               KPerBlock,
-                                                               OffsettedLocalBlock2ETileMap,
-                                                               Block2ETileMap,
-                                                               AElementwiseOperation,
-                                                               BElementwiseOperation,
-                                                               CDEElementwiseOperation,
-                                                               BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer>;
-        int occupancy, num_cu;
-        hip_check_error(
-            hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, BlockSize, 0));
+        int occupancy = GetKernelOccupancy();
+        int num_cu;
 
         hipDeviceProp_t dev_prop;
         hipDevice_t dev;
