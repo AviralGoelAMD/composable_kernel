@@ -119,6 +119,8 @@ int run_gemm_example_with_layouts(int argc,
 
     ck_tile::index_t AQK = K / QuantGroupSize;
 
+    std::cout << "M:" << M << " N:" << N << " K:" << K << " AQK:" << AQK << std::endl;
+
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_AQ = arg_parser.get_int("stride_q");
     ck_tile::index_t stride_B  = arg_parser.get_int("stride_b");
@@ -177,6 +179,9 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
+        std::cout << "A matrix is filled with 34" << std::endl;
+        std::cout << "AQ matrix is filled with 0.5" << std::endl;
+        std::cout << "B matrix is filled with 56" << std::endl;
         ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
         ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
         ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);

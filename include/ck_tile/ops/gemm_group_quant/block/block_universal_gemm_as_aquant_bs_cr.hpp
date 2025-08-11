@@ -435,7 +435,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
             });
         }
     };
-
     template <typename GemmTraits>
     struct BlockGemmImpl<GemmPipelineScheduler::Interwave, GemmTraits>
     {
