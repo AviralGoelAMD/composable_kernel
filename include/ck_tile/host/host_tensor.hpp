@@ -656,6 +656,25 @@ struct HostTensor
             {
                 os << type_convert<float>(t.mData[idx]) << " #### ";
             }
+            else if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
+            {
+                os << static_cast<int32_t>(t.mData[idx].data) << " ####! ";
+            }
+            else if constexpr(std::is_same_v<T, ck_tile::fp8_t>)
+            {
+                os << static_cast<int32_t>(t.mData[idx]) << " ####8 ";
+            }
+            else if constexpr(sizeof(T) == 1)
+            {
+                if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
+                {
+                    os << static_cast<int32_t>(t.mData[idx].data) << " ####1 ";
+                }
+                else
+                {
+                    os << static_cast<int32_t>(t.mData[idx]) << " ####1 ";
+                }
+            }
             else
             {
                 os << t.mData[idx];

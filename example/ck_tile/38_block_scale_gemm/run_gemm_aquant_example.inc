@@ -53,6 +53,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
 
+    std::cout << __func__ << " kbatch: " << kbatch << std::endl;
+
     float ave_time = gemm_calc_aquant<ADataType,
                                       AQDataType,
                                       BDataType,
@@ -145,13 +147,13 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    std::cout << "a_m_k:" << M << "x" << K << " stride_A:" << stride_A
+    std::cout << __func__ << " a_m_k:" << M << "x" << K << " stride_A:" << stride_A
               << " is_row_major:" << is_row_major(a_layout) << std::endl;
-    std::cout << "aq_m_aqk:" << M << "x" << AQK << " stride_AQ:" << stride_AQ
+    std::cout << __func__ << " aq_m_aqk:" << M << "x" << AQK << " stride_AQ:" << stride_AQ
               << " is_row_major:" << is_row_major(aq_layout) << std::endl;
-    std::cout << "b_k_n:" << K << "x" << N << " stride_B:" << stride_B
+    std::cout << __func__ << " b_k_n:" << K << "x" << N << " stride_B:" << stride_B
               << " is_row_major:" << is_row_major(b_layout) << std::endl;
-    std::cout << "c_m_n_dev_result:" << M << "x" << N << " stride_C:" << stride_C
+    std::cout << __func__ << " c_m_n_dev_result:" << M << "x" << N << " stride_C:" << stride_C
               << " is_row_major:" << is_row_major(CLayout{}) << std::endl;
 
     std::random_device rd;
@@ -179,9 +181,9 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        std::cout << "A matrix is filled with 34" << std::endl;
-        std::cout << "AQ matrix is filled with 0.5" << std::endl;
-        std::cout << "B matrix is filled with 56" << std::endl;
+        std::cout << __func__ << " A matrix is filled with 34" << std::endl;
+        std::cout << __func__ << " AQ matrix is filled with 0.5" << std::endl;
+        std::cout << __func__ << " B matrix is filled with 56" << std::endl;
         ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
         ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
         ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
@@ -192,7 +194,12 @@ int run_gemm_example_with_layouts(int argc,
         aq_m_aqk.SetZero();
         b_k_n.SetZero();
     }
-
+    // std::cout << "A matrix: " << std::endl;
+    // std::cout << a_m_k << std::endl;
+    // std::cout << "AQ matrix: " << std::endl;
+    // std::cout << aq_m_aqk << std::endl;
+    // std::cout << "B matrix: " << std::endl;
+    // std::cout << b_k_n << std::endl;
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
