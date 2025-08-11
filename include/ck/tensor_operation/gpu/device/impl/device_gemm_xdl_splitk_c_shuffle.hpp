@@ -336,11 +336,10 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
         }
         else
         {
-            const typename GridwiseGemm64::Argument* p_karg64 = &karg;
-            if constexpr(NXdlPerWave64 > 0)
+            if constexpr(NXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(
-                    *reinterpret_cast<const typename GridwiseGemm32::Argument*>(p_karg64));
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(karg));
             }
         }
         return false;

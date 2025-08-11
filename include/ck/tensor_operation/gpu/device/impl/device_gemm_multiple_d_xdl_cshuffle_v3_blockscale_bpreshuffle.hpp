@@ -157,7 +157,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
     using GridwiseGemm32 = GridwiseGemmBase<math::max(NXdlPerWave32, 1)>;
 
     using Argument   = typename GridwiseGemm64::Argument;
-    using Argument32 = typename GridwiseGemm32::Argument;
+    
     int GetPreShuffleParameters() override { return NPerXDL; }
 
     // Invoker
@@ -330,7 +330,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
             return ave_time;
         }
 
-        INVOKER_RUN2_IMPL
+        INVOKER_RUN3_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -388,7 +388,7 @@ struct DeviceGemmMultiD_BlockScale_Xdl_CShuffle_V3_BPreshuffle
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(arg));
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const  typename GridwiseGemm32::Argument&>(arg));
             }
         }
         return false;

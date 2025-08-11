@@ -128,7 +128,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using Argument   = typename GridwiseGemm64::Argument;
-    using Argument32 = typename GridwiseGemm32::Argument;
+    
     // Invoker
     struct Invoker : public BaseInvoker
     {
@@ -169,7 +169,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
             return ave_time;
         }
 
-        INVOKER_RUN2_IMPL
+        INVOKER_RUN3_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -227,7 +227,7 @@ struct DeviceGemmXdl : public DeviceGemm<ALayout,
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(karg));
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const  typename GridwiseGemm32::Argument&>(karg));
             }
             else
             {

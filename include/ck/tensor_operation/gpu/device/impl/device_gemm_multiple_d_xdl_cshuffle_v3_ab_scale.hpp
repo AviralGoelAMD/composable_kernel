@@ -157,7 +157,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
     using GridwiseGemm32 = GridwiseGemmBase<math::max(NXdlPerWave32, 1)>;
 
     using Argument   = typename GridwiseGemm64::Argument;
-    using Argument32 = typename GridwiseGemm32::Argument;
+    
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -291,7 +291,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return ave_time;
         }
 
-        INVOKER_RUN2_IMPL
+        INVOKER_RUN3_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -339,7 +339,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return GridwiseGemm32::CheckValidity(reinterpret_cast<const Argument32&>(arg));
+                return GridwiseGemm32::CheckValidity(reinterpret_cast<const  typename GridwiseGemm32::Argument&>(arg));
             }
         }
         return false;

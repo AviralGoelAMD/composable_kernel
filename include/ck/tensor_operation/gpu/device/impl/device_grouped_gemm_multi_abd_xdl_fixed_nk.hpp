@@ -516,7 +516,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
                     [&](auto j) { StrideDs[j] = gemm_descs[i].stride_Ds_[j]; });
 
                 const auto e_grid_desc_m_n =
-                    GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                    GridwiseGemm64::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
                         AverM, N, StrideE);
 
                 // block-to-e-tile map
@@ -555,7 +555,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
             }
 
             const auto e_grid_desc_sum_m_n =
-                GridwiseGemm::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
+                GridwiseGemm64::template MakeEGridDescriptor_M_N<ELayout, GemmSpec>(
                     sum_of_m, gemm_desc_kernel_arg_[0].N_, gemm_desc_kernel_arg_[0].StrideE_);
 
             const auto local_b2c_tile_map = Block2ETileMap{e_grid_desc_sum_m_n, 1};
@@ -590,7 +590,7 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
             bool has_main_k_block_loop = true;

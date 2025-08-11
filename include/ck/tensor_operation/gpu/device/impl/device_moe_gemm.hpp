@@ -153,7 +153,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using Argument   = typename GridwiseGemm64::Argument;
-    using Argument32 = typename GridwiseGemm32::Argument;
+    
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
@@ -385,7 +385,7 @@ struct DeviceMoeGemm : public DeviceGemmMultipleDSplitKBPreShuffle<ALayout,
             return ave_time;
         }
 
-        INVOKER_RUN2_IMPL
+        INVOKER_RUN3_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

@@ -144,7 +144,6 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using Argument   = typename GridwiseGemm64::Argument;
-    using Argument32 = typename GridwiseGemm32::Argument;
     int GetPreShuffleParameters() override { return NPerXDL; }
 
     // Invoker
@@ -180,7 +179,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
 
                     std::array<std::size_t, NumDTensor> DsSize;
 
-                    Argument arg_ = arg;
+                    auto arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -199,7 +198,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
                         using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                         DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
-                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
+                    ck::utility::RotatingMemWrapperMultiD<typename GridwiseGemm::Argument, DsDataType> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
                     rotating_mem.Print();
 
@@ -500,7 +499,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             return ave_time;
         }
 
-        INVOKER_RUN2_IMPL
+        INVOKER_RUN3_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -541,7 +540,21 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if (get_warp_size() == 64)
+        {
+            if constexpr (NXdlPerWave64 > 0)
+            {
+     return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+                        if constexpr (NXdlPerWave32 > 0)
+            {
+     return GridwiseGemm32::CheckValidity(reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -662,7 +675,7 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3_BPreshuffle
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

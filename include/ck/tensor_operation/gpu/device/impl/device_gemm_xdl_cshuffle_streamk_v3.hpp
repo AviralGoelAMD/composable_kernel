@@ -132,7 +132,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using Argument = typename GridwiseGemm64::Argument;
-    // using Argument32 = typename GridwiseGemm32::Argument;
+    // 
 
     // Invoker
     struct Invoker : public BaseInvoker
@@ -436,7 +436,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             return ave_time;
         }
 
-        // INVOKER_RUN2_IMPL
+        // INVOKER_RUN3_IMPL
         float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(get_warp_size() == 64)
