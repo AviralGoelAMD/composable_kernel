@@ -872,6 +872,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     {
         using Argument = DeviceOp::Argument;
 
+        template <typename GridwiseGemm>
         float RunGemm(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
@@ -1245,8 +1246,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         }
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time = 0.f;
             if constexpr(!isMultiABD)
@@ -1302,7 +1302,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
                                                a_grid_size);
                 }
 
-                avg_time += RunGemm(arg, stream_config);
+                avg_time += RunGemm<GridwiseGemm>(arg, stream_config);
 
                 // Transpose result back to NGCHW
                 if constexpr(is_NGCHW_GKCYX_NGKHW<ALayout, BLayout, ELayout>() ||
@@ -1644,23 +1644,52 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         const index_t GemmK =
             arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) * arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
 
-        typename GridwiseGemm::Argument gemm_arg{nullptr,
-                                                 nullptr,
-                                                 {},
-                                                 nullptr,
-                                                 GemmM,
-                                                 GemmN,
-                                                 GemmK,
-                                                 I0,
-                                                 I0,
-                                                 {},
-                                                 I0,
-                                                 I1 /*KBatch*/,
-                                                 arg.a_element_op_,
-                                                 arg.b_element_op_,
-                                                 arg.cde_element_op_};
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                typename GridwiseGemm64::Argument gemm_arg{nullptr,
+                                                           nullptr,
+                                                           {},
+                                                           nullptr,
+                                                           GemmM,
+                                                           GemmN,
+                                                           GemmK,
+                                                           I0,
+                                                           I0,
+                                                           {},
+                                                           I0,
+                                                           I1 /*KBatch*/,
+                                                           arg.a_element_op_,
+                                                           arg.b_element_op_,
+                                                           arg.cde_element_op_};
+                return GridwiseGemm64::CheckValidity(gemm_arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                typename GridwiseGemm32::Argument gemm_arg{nullptr,
+                                                           nullptr,
+                                                           {},
+                                                           nullptr,
+                                                           GemmM,
+                                                           GemmN,
+                                                           GemmK,
+                                                           I0,
+                                                           I0,
+                                                           {},
+                                                           I0,
+                                                           I1 /*KBatch*/,
+                                                           arg.a_element_op_,
+                                                           arg.b_element_op_,
+                                                           arg.cde_element_op_};
+                return GridwiseGemm32::CheckValidity(gemm_arg);
+            }
+        }
 
-        return GridwiseGemm::CheckValidity(gemm_arg);
+        return false;
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

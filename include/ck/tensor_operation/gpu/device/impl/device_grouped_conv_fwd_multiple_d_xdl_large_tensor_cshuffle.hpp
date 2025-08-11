@@ -425,21 +425,21 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
     // desc for blockwise copy
     using AGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
             AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
     using DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
-        decltype(GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             DsGridDesc_M_N{}))>;
-    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        remove_cvref_t<decltype(GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+    using EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock = remove_cvref_t<
+        decltype(GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             EGridDesc_M_N{}))>;
 
     // block-to-e-tile map
     using Block2ETileMap =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
     // Structure for each gemm(conv)
     struct GemmArgs
     {
@@ -552,7 +552,7 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                         generate_tuple([&](auto) { return e_grid_desc_m_n; }, Number<NumDTensor>{});
 
                     const auto block_2_etile_map =
-                        GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
+                        GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n);
 
                     const index_t grid_size_grp =
                         block_2_etile_map.CalculateGridSize(e_grid_desc_m_n);
@@ -562,28 +562,71 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 
                     grid_size_ += grid_size_grp;
 
-                    if(GridwiseGemm::CheckValidity(a_grid_desc_m_k,
-                                                   b_grid_desc_n_k,
-                                                   ds_grid_desc_m_n,
-                                                   e_grid_desc_m_n,
-                                                   block_2_etile_map))
+                    if(get_warp_size() == 64)
                     {
-                        gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
-                            a_grid_ptrs[i],
-                            static_cast<const BDataType*>(p_b),
-                            ds_grid_ptrs[i],
-                            c_grid_ptrs[i],
-                            GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k),
-                            GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k),
-                            GridwiseGemm::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                ds_grid_desc_m_n),
-                            GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                                e_grid_desc_m_n),
-                            block_2_etile_map,
-                            BlockStart,
-                            BlockEnd};
+                        if constexpr(NXdlPerWave64 > 0)
+                        {
+                            if(GridwiseGemm64::CheckValidity(a_grid_desc_m_k,
+                                                             b_grid_desc_n_k,
+                                                             ds_grid_desc_m_n,
+                                                             e_grid_desc_m_n,
+                                                             block_2_etile_map))
+                            {
+                                gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
+                                    a_grid_ptrs[i],
+                                    static_cast<const BDataType*>(p_b),
+                                    ds_grid_ptrs[i],
+                                    c_grid_ptrs[i],
+                                    GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
+                                        a_grid_desc_m_k),
+                                    GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
+                                        b_grid_desc_n_k),
+                                    GridwiseGemm64::
+                                        MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                            ds_grid_desc_m_n),
+                                    GridwiseGemm64::
+                                        MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                            e_grid_desc_m_n),
+                                    block_2_etile_map,
+                                    BlockStart,
+                                    BlockEnd};
 
-                        valid_gemms_count_++;
+                                valid_gemms_count_++;
+                            }
+                        }
+                        else
+                        {
+                            if constexpr(NXdlPerWave32 > 0)
+                            {
+                                if(GridwiseGemm32::CheckValidity(a_grid_desc_m_k,
+                                                                 b_grid_desc_n_k,
+                                                                 ds_grid_desc_m_n,
+                                                                 e_grid_desc_m_n,
+                                                                 block_2_etile_map))
+                                {
+                                    gemm_desc_kernel_args_(valid_gemms_count_) = GemmArgs{
+                                        a_grid_ptrs[i],
+                                        static_cast<const BDataType*>(p_b),
+                                        ds_grid_ptrs[i],
+                                        c_grid_ptrs[i],
+                                        GridwiseGemm32::MakeDefaultAGridDescriptor_AK0_M_AK1(
+                                            a_grid_desc_m_k),
+                                        GridwiseGemm32::MakeDefaultBGridDescriptor_BK0_N_BK1(
+                                            b_grid_desc_n_k),
+                                        GridwiseGemm32::
+                                            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                                ds_grid_desc_m_n),
+                                        GridwiseGemm32::
+                                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                                e_grid_desc_m_n),
+                                        block_2_etile_map,
+                                        BlockStart,
+                                        BlockEnd};
+
+                                    valid_gemms_count_++;
+                                }
+                            }
+                        }
                     }
                 }
                 // N is the same for all convs
@@ -658,7 +701,10 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const DeviceOp::Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+
+        using Argument = DeviceOp::Argument;
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -711,6 +757,8 @@ struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override

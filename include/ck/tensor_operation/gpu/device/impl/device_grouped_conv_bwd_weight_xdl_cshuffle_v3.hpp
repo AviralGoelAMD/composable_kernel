@@ -179,8 +179,8 @@ template <ck::index_t NDimSpatial,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXdl,
-          ck::index_t NPerXdl,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -359,8 +359,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         K0PerBlock,
         K1,
         K1,
-        MPerXdl,
-        NPerXdl,
+        MPerXDL,
+        NPerXDL,
         MXdlPerWave,
         NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -392,12 +392,13 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
     struct ActiveWorkgroupsPerCU
     {
-        ActiveWorkgroupsPerCU()
+        template <typename GridwiseGemm>
+        static int GetMaxOccupancy()
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
@@ -436,7 +437,26 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
                     BlockSize,
                     dynamic_smem_size));
             }
-            max_occupancy_ = std::max(1, max_occupancy);
+            return std::max(1, max_occupancy);
+        }
+
+        ActiveWorkgroupsPerCU()
+        {
+            max_occupancy_ = 1;
+            if(get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm64>();
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm32>();
+                }
+            }
         }
         int max_occupancy_;
     };
@@ -568,10 +588,10 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             const index_t GemmN = b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
 
             c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     c_grid_desc_m_n_,
-                    GridwiseGemm::CalculateMBlock(GemmM),
-                    GridwiseGemm::CalculateNBlock(GemmN));
+                    GridwiseGemm64::CalculateMBlock(GemmM),
+                    GridwiseGemm64::CalculateNBlock(GemmN));
         }
 
         const ADataType* p_a_grid_;
@@ -630,8 +650,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         }
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const index_t GemmM = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I1);
             const index_t GemmN = arg.b_grid_desc_kbatch_k0_n_k1_.GetLength(I1);
@@ -1261,13 +1280,44 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const index_t GemmK = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) *
                               arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
 
-        typename GridwiseGemm::Argument gemm_arg{
-            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
-
-        const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+        if(get_warp_size() == 64)
         {
-            if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                typename GridwiseGemm64::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+                const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                {
+                    if(num_k_loop <= GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                typename GridwiseGemm32::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+                const auto num_k_loop = gemm_arg.AK0 / (K0PerBlock / K1);
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                {
+                    if(num_k_loop <= GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
             {
                 return false;
             }

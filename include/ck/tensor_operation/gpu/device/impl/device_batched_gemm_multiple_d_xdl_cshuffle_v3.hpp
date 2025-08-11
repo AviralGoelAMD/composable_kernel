@@ -254,6 +254,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         LDSTypeB>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
+    using GridwiseGemm   = GridwiseGemm64;
 
     struct ComputePtrOffsetOfStridedBatch
     {
@@ -302,53 +303,55 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         index_t BatchStrideC_;
     };
 
-    struct Argument : public GridwiseGemm64::Argument
+    template <typename GridwiseGemm>
+    struct ArgumentBase : public GridwiseGemm::Argument
     {
         index_t Batch;
         ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch;
 
-        Argument() = default;
-        Argument(const ADataType* p_a_grid_,
-                 const BDataType* p_b_grid_,
-                 std::array<const void*, NumDTensor> p_ds_grid_,
-                 CDataType* p_e_grid_,
-                 index_t M_,
-                 index_t N_,
-                 index_t K_,
-                 index_t StrideA_,
-                 index_t StrideB_,
-                 std::array<index_t, NumDTensor> StrideDs_,
-                 index_t StrideE_,
-                 index_t BatchStrideA_,
-                 index_t BatchStrideB_,
-                 const std::array<ck::index_t, NumDTensor>& BatchStrideDs_,
-                 index_t BatchStrideE_,
-                 index_t Batch_,
-                 AElementwiseOperation a_element_op_,
-                 BElementwiseOperation b_element_op_,
-                 CElementwiseOperation c_element_op_,
-                 index_t KBatch_)
-            : GridwiseGemm64::Argument{p_a_grid_,
-                                       p_b_grid_,
-                                       p_ds_grid_,
-                                       p_e_grid_,
-                                       M_,
-                                       N_,
-                                       K_,
-                                       StrideA_,
-                                       StrideB_,
-                                       StrideDs_,
-                                       StrideE_,
-                                       KBatch_,
-                                       a_element_op_,
-                                       b_element_op_,
-                                       c_element_op_},
+        ArgumentBase() = default;
+        ArgumentBase(const ADataType* p_a_grid_,
+                     const BDataType* p_b_grid_,
+                     std::array<const void*, NumDTensor> p_ds_grid_,
+                     CDataType* p_e_grid_,
+                     index_t M_,
+                     index_t N_,
+                     index_t K_,
+                     index_t StrideA_,
+                     index_t StrideB_,
+                     std::array<index_t, NumDTensor> StrideDs_,
+                     index_t StrideE_,
+                     index_t BatchStrideA_,
+                     index_t BatchStrideB_,
+                     const std::array<ck::index_t, NumDTensor>& BatchStrideDs_,
+                     index_t BatchStrideE_,
+                     index_t Batch_,
+                     AElementwiseOperation a_element_op_,
+                     BElementwiseOperation b_element_op_,
+                     CElementwiseOperation c_element_op_,
+                     index_t KBatch_)
+            : GridwiseGemm::Argument{p_a_grid_,
+                                     p_b_grid_,
+                                     p_ds_grid_,
+                                     p_e_grid_,
+                                     M_,
+                                     N_,
+                                     K_,
+                                     StrideA_,
+                                     StrideB_,
+                                     StrideDs_,
+                                     StrideE_,
+                                     KBatch_,
+                                     a_element_op_,
+                                     b_element_op_,
+                                     c_element_op_},
               Batch{Batch_},
               compute_ptr_offset_of_batch{
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
         }
     };
+    using Argument = ArgumentBase<GridwiseGemm64>;
 
     struct ActiveWorkgroupsPerCU
     {
@@ -448,12 +451,13 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         template <typename GridwiseGemm>
         float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
+            using BatchGemmArgument = ArgumentBase<GridwiseGemm>;
             if(stream_config.log_level_ > 0)
             {
                 arg.Print();
             }
 
-            if(!GridwiseGemm::CheckValidity(arg))
+            if(!GridwiseGemm::CheckValidity(reinterpret_cast<const BatchGemmArgument&>(arg)))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
@@ -475,7 +479,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
 
                     std::array<std::size_t, NumDTensor> DsSize;
 
-                    Argument arg_ = arg;
+                    BatchGemmArgument arg_ = reinterpret_cast<const BatchGemmArgument&>(arg);
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -494,8 +498,12 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                         DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
-                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
+                    ck::utility::RotatingMemWrapperMultiD<BatchGemmArgument, DsDataType>
+                        rotating_mem(arg_,
+                                     stream_config.rotating_count,
+                                     size_a_buffer,
+                                     size_b_buffer,
+                                     DsSize);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -532,13 +540,14 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                                                stream_config.stream_id_));
                     };
 
-                    ave_time = launch_and_time_kernel_with_preprocess(stream_config,
+                    BatchGemmArgument arg_ = reinterpret_cast<const BatchGemmArgument&>(arg);
+                    ave_time               = launch_and_time_kernel_with_preprocess(stream_config,
                                                                       clear_workspace,
                                                                       kernel,
                                                                       dim3(gdx, gdy, gdz),
                                                                       dim3(BlockSize),
                                                                       0,
-                                                                      arg);
+                                                                      arg_);
                 }
             };
 
@@ -567,7 +576,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                     {
                         const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                             GridwiseGemm,
-                            Argument,
+                            BatchGemmArgument,
                             true,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -577,7 +586,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                     {
                         const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                             GridwiseGemm,
-                            Argument,
+                            BatchGemmArgument,
                             true,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -593,7 +602,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -605,7 +614,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -619,7 +628,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -635,7 +644,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -651,7 +660,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -667,7 +676,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -682,7 +691,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -698,7 +707,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::AtomicAdd,
                                     minimum_occupancy,
@@ -713,7 +722,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -725,7 +734,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -739,7 +748,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -755,7 +764,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -771,7 +780,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -787,7 +796,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -802,7 +811,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -818,7 +827,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             {
                                 const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                     GridwiseGemm,
-                                    Argument,
+                                    BatchGemmArgument,
                                     true,
                                     InMemoryDataOperationEnum::Set,
                                     minimum_occupancy,
@@ -837,7 +846,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -848,7 +857,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -862,7 +871,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -873,7 +882,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -890,7 +899,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -901,7 +910,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy,
@@ -915,7 +924,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -926,7 +935,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                         {
                             const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm,
-                                Argument,
+                                BatchGemmArgument,
                                 true,
                                 InMemoryDataOperationEnum::Set,
                                 minimum_occupancy,
@@ -945,7 +954,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                     {
                         const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                             GridwiseGemm,
-                            Argument,
+                            BatchGemmArgument,
                             false,
                             InMemoryDataOperationEnum::AtomicAdd,
                             minimum_occupancy>;
@@ -955,7 +964,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                     {
                         const auto kernel = kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                             GridwiseGemm,
-                            Argument,
+                            BatchGemmArgument,
                             false,
                             InMemoryDataOperationEnum::Set,
                             minimum_occupancy>;
@@ -1013,9 +1022,11 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         {
             if constexpr(NXdlPerWave32 > 0)
             {
-                return GridwiseGemm32::CheckValidity(arg);
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
             }
         }
+        return false;
     }
 
     // polymorphic

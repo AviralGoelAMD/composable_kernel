@@ -172,8 +172,8 @@ template <ck::index_t NDimSpatial,
           ck::index_t NPerBlock,
           ck::index_t KPerBlock,
           ck::index_t K1,
-          ck::index_t MPerXdl,
-          ck::index_t NPerXdl,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -422,8 +422,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         KPerBlock,
         K1,
         K1,
-        MPerXdl,
-        NPerXdl,
+        MPerXDL,
+        NPerXDL,
         MXdlPerWave,
         NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -515,7 +515,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+        decltype(GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
             CGridDesc_M_N{}, 1, 1));
 
     struct ActiveWorkgroupsPerCU
@@ -716,10 +716,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             compute_ptr_offset_of_batch_.BatchStrideB_ = b_g_n_c_wis_strides_transposed[0];
             compute_ptr_offset_of_batch_.BatchStrideC_ = e_g_k_c_xs_strides_transposed[0];
             c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                     ce_grid_desc_m_n_,
-                    GridwiseGemm::CalculateMBlock(GemmM),
-                    GridwiseGemm::CalculateNBlock(GemmN));
+                    GridwiseGemm64::CalculateMBlock(GemmM),
+                    GridwiseGemm64::CalculateNBlock(GemmN));
 
             if constexpr(is_NGCHW_NGKHW<InLayout, WeiLayout, OutLayout>() ||
                          is_NGCDHW_NGKDHW<InLayout, WeiLayout, OutLayout>())
@@ -865,6 +865,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                       << arg.ce_grid_desc_m_n_.GetLength(I1) << "}" << std::endl;
         }
 
+        template <typename GridwiseGemm>
         float RunGemmV3(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             const index_t GemmM = arg.a_grid_desc_k0_m_k1_.GetLength(I1);
@@ -1519,8 +1520,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         }
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
-                     const StreamConfig& stream_config = StreamConfig{})
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time                 = 0.f;
             auto launch_elementwise_kernel = [&]() {
@@ -1667,13 +1667,44 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
         const index_t GemmK =
             arg.a_grid_desc_k0_m_k1_.GetLength(I0) * arg.a_grid_desc_k0_m_k1_.GetLength(I2);
 
-        typename GridwiseGemm::Argument gemm_arg{
-            nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
-
-        const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / K1);
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+        if(get_warp_size() == 64)
         {
-            if(num_k_loop <= GridwiseGemm::BlockwiseGemmPipe::PrefetchStages)
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                typename GridwiseGemm64::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+                const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / K1);
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                {
+                    if(num_k_loop <= GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                typename GridwiseGemm32::Argument gemm_arg{
+                    nullptr, nullptr, nullptr, GemmM, GemmN, GemmK, I0, I0, I0, arg.k_batch_};
+
+                const auto num_k_loop = gemm_arg.AK0 / (KPerBlock / K1);
+                if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+                {
+                    if(num_k_loop <= GridwiseGemm32::BlockwiseGemmPipe::PrefetchStages)
+                    {
+                        return false;
+                    }
+                }
+            }
+            else
             {
                 return false;
             }

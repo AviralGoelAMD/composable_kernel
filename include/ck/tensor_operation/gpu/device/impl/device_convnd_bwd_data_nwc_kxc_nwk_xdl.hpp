@@ -1367,26 +1367,27 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         bool isWave64 = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
         {
+            bool valid = false;
             if(isWave64)
             {
-                if(!((NXdlPerWave64 > 0) &&
-                     GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
-                                                   arg.b_grid_desc_k0_n_k1_container_[i],
-                                                   arg.c_grid_desc_m_n_container_[i])))
+                if constexpr(NXdlPerWave64 > 0)
                 {
-                    return false;
+                    valid = GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
                 }
             }
             else
             {
-                if(!((NXdlPerWave32 > 0) &&
-                     GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
-                                                   arg.b_grid_desc_k0_n_k1_container_[i],
-                                                   arg.c_grid_desc_m_n_container_[i])))
+                if constexpr(NXdlPerWave32 > 0)
                 {
-                    return false;
+                    valid = GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
                 }
             }
+            if(!valid)
+                return false;
         }
         return true;
     }
