@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -108,7 +108,11 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
+    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
+    static_assert(MWaves > 0);
+    static_assert(NWaves > 0);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
@@ -120,9 +124,6 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat    = KPerThread / KPack;
-
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
     using HotLoopInstList = BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                                       MPerBlock,
@@ -237,6 +238,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
                                     Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
@@ -245,7 +247,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
-
+#endif
         // HotLoopInstList::Print();
     }
 

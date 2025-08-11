@@ -7,7 +7,7 @@
 
 namespace ck {
 
-#if defined(CK_ENABLE_DYNAMIC_WARP_SIZE)
+#if 1 // defined(CK_ENABLE_DYNAMIC_WARP_SIZE)
 __device__ constexpr index_t get_warp_size()
 {
 #if defined(__HIP_DEVICE_COMPILE__)

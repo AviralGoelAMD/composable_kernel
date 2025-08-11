@@ -94,79 +94,83 @@ __device__ void device_grouped_conv_fwd_multiple_abd_xdl_cshuffle(
     const Block2ETileMap block_2_ctile_map,
     const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
 {
-#if defined(__gfx9__)
-    // offset base pointer for each work-group
-    const index_t num_blocks_per_batch =
-        __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
-    const index_t g_idx = __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
-
-    const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
-        static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
-    const auto& ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
-
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-
-    DsPointer p_ds_grid_grp;
-
-    static constexpr index_t NumDTensor =
-        DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
-
-    static_for<0, NumDTensor, 1>{}(
-        [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
-
-    if constexpr(isMultiA || isMultiB)
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
-        AsPointer p_as_grid_grp;
-        BsPointer p_bs_grid_grp;
+        // offset base pointer for each work-group
+        const index_t num_blocks_per_batch =
+            __builtin_amdgcn_readfirstlane(get_grid_size() / batch_count);
+        const index_t g_idx =
+            __builtin_amdgcn_readfirstlane(get_block_1d_id() / num_blocks_per_batch);
 
-        const auto& as_batch_offset = compute_ptr_offset_of_batch.GetAsPtrOffset(g_idx);
+        const long_index_t e_batch_offset = __builtin_amdgcn_readfirstlane(
+            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetEPtrOffset(g_idx)));
+        const auto& ds_batch_offset = compute_ptr_offset_of_batch.GetDsPtrOffset(g_idx);
 
-        static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
-        static_for<0, NumATensor, 1>{}(
-            [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i]; });
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        const auto& bs_batch_offset = compute_ptr_offset_of_batch.GetBsPtrOffset(g_idx);
+        DsPointer p_ds_grid_grp;
 
-        static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
-        static_for<0, NumBTensor, 1>{}(
-            [&](auto i) { p_bs_grid_grp(i) = p_bs_grid[i] + bs_batch_offset[i]; });
+        static constexpr index_t NumDTensor =
+            DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock::Size();
 
-        GridwiseGemm::template Run<HasMainKBlockLoop>(
-            p_as_grid_grp,
-            p_bs_grid_grp,
-            p_ds_grid_grp,
-            p_e_grid + e_batch_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            a_grid_desc_k0_m_k1,
-            b_grid_desc_k0_n_k1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            block_2_ctile_map);
-    }
-    else
-    {
-        const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
-        const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
-            static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+        static_for<0, NumDTensor, 1>{}(
+            [&](auto i) { p_ds_grid_grp(i) = p_ds_grid[i] + ds_batch_offset[i]; });
 
-        GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
-            p_as_grid + a_batch_offset,
-            p_bs_grid + b_batch_offset,
-            p_ds_grid_grp,
-            p_e_grid + e_batch_offset,
-            p_shared,
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            a_grid_desc_k0_m_k1,
-            b_grid_desc_k0_n_k1,
-            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            e_grid_desc_mblock_mperblock_nblock_nperblock_,
-            block_2_ctile_map);
+        if constexpr(isMultiA || isMultiB)
+        {
+            AsPointer p_as_grid_grp;
+            BsPointer p_bs_grid_grp;
+
+            const auto& as_batch_offset = compute_ptr_offset_of_batch.GetAsPtrOffset(g_idx);
+
+            static constexpr index_t NumATensor = AGridDesc_AK0_M_AK1::Size();
+            static_for<0, NumATensor, 1>{}(
+                [&](auto i) { p_as_grid_grp(i) = p_as_grid[i] + as_batch_offset[i]; });
+
+            const auto& bs_batch_offset = compute_ptr_offset_of_batch.GetBsPtrOffset(g_idx);
+
+            static constexpr index_t NumBTensor = BGridDesc_BK0_N_BK1::Size();
+            static_for<0, NumBTensor, 1>{}(
+                [&](auto i) { p_bs_grid_grp(i) = p_bs_grid[i] + bs_batch_offset[i]; });
+
+            GridwiseGemm::template Run<HasMainKBlockLoop>(
+                p_as_grid_grp,
+                p_bs_grid_grp,
+                p_ds_grid_grp,
+                p_e_grid + e_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                a_grid_desc_k0_m_k1,
+                b_grid_desc_k0_n_k1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                block_2_ctile_map);
+        }
+        else
+        {
+            const long_index_t a_batch_offset = __builtin_amdgcn_readfirstlane(
+                static_cast<long_index_t>(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx)));
+            const long_index_t b_batch_offset = __builtin_amdgcn_readfirstlane(
+                static_cast<long_index_t>(compute_ptr_offset_of_batch.GetBPtrOffset(g_idx)));
+
+            GridwiseGemm::template Run<HasMainKBlockLoop, InMemoryDataOperationEnum::Set>(
+                p_as_grid + a_batch_offset,
+                p_bs_grid + b_batch_offset,
+                p_ds_grid_grp,
+                p_e_grid + e_batch_offset,
+                p_shared,
+                a_element_op,
+                b_element_op,
+                cde_element_op,
+                a_grid_desc_k0_m_k1,
+                b_grid_desc_k0_n_k1,
+                ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                e_grid_desc_mblock_mperblock_nblock_nperblock_,
+                block_2_ctile_map);
+        }
     }
 #else
     ignore = p_as_grid;
@@ -353,6 +357,9 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
                                              ComputeDataType>
 {
     using DeviceOp = CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr bool isMultiA = is_detected<is_tuple, ADataType>::value;
     static constexpr bool isMultiB = is_detected<is_tuple, BDataType>::value;
@@ -470,10 +477,13 @@ struct CodegenDeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,                      \
         CDEBlockTransferScalarPerVector_NPerBlock, LoopSched
     // Use appropriate gridwise gemm
-    using GridwiseGemm = ck::conditional_t<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = ck::conditional_t<
         isMultiA || isMultiB,
         GridwiseGemmMultipleABD_xdl_cshuffle<GridwiseGemmMultiABDTemplateParameters>,
         GridwiseGemmMultipleD_xdl_cshuffle<GridwiseGemmTemplateParameters>>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // If ADataTypes or BDataTypes is tuple, user has to pass ck::Array with pointers.
     using APointers = ck::conditional_t<isMultiA, ck::Array<const void*, NumATensor>&, const void*>;

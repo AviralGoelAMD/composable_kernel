@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,16 +38,20 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                             const BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1,
                             const CGridDesc_M_N c_grid_desc_m_n)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m_n);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                      p_b_grid,
+                                                      p_c_grid,
+                                                      p_shared,
+                                                      a_grid_desc_k0_m_k1,
+                                                      b_grid_desc_k0_n_k1,
+                                                      c_grid_desc_m_n);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -68,25 +72,29 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
     kernel_gemm_xdlops_v2r3(const typename GridwiseGemm::Argument karg)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const auto a_grid_desc_k0_m_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
-            karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
-    const auto b_grid_desc_k0_n_k1 =
-        amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
-            karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
-    const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
-        karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
+        const auto a_grid_desc_k0_m_k1 =
+            amd_wave_read_first_lane(GridwiseGemm::MakeAGridDescriptor_K0_M_K1(
+                karg.M, karg.MPadded, karg.K, karg.K0, karg.StrideA));
+        const auto b_grid_desc_k0_n_k1 =
+            amd_wave_read_first_lane(GridwiseGemm::MakeBGridDescriptor_K0_N_K1(
+                karg.K, karg.N, karg.NPadded, karg.K0, karg.StrideB));
+        const auto c_grid_desc_m_n = amd_wave_read_first_lane(GridwiseGemm::MakeCGridDescriptor_M_N(
+            karg.M, karg.MPadded, karg.N, karg.NPadded, karg.StrideC));
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid,
-                                                  karg.p_b_grid,
-                                                  karg.p_c_grid,
-                                                  p_shared,
-                                                  a_grid_desc_k0_m_k1,
-                                                  b_grid_desc_k0_n_k1,
-                                                  c_grid_desc_m_n);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(karg.p_a_grid,
+                                                      karg.p_b_grid,
+                                                      karg.p_c_grid,
+                                                      p_shared,
+                                                      a_grid_desc_k0_m_k1,
+                                                      b_grid_desc_k0_n_k1,
+                                                      c_grid_desc_m_n);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
@@ -103,8 +111,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
@@ -314,6 +322,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         return (a_block_space_size_aligned + b_block_space_size_aligned) * sizeof(FloatAB);
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     template <typename AGridDesc_K0_M_K1, typename BGridDesc_K0_N_K1, typename CGridDesc_M_N>
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
@@ -323,8 +334,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
@@ -356,8 +367,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         // check gridwise gemm pipeline
@@ -421,8 +432,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_k0_m_k1),
                                                                 decltype(b_block_desc_k0_n_k1),
-                                                                MPerXDL,
-                                                                NPerXDL,
+                                                                MPerXdl,
+                                                                NPerXdl,
                                                                 MXdlPerWave,
                                                                 NXdlPerWave,
                                                                 K1>;
@@ -566,8 +577,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
             FloatAcc,
             decltype(a_block_desc_k0_m_k1),
             decltype(b_block_desc_k0_n_k1),
-            MPerXDL,
-            NPerXDL,
+            MPerXdl,
+            NPerXdl,
             MXdlPerWave,
             NXdlPerWave,
             K1,
@@ -704,8 +715,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
@@ -743,8 +754,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
                                               MPerBlock,
                                               NPerBlock,
                                               K0PerBlock,
-                                              MPerXDL,
-                                              NPerXDL,
+                                              MPerXdl,
+                                              NPerXdl,
                                               K1Value,
                                               MXdlPerWave,
                                               NXdlPerWave,
@@ -783,8 +794,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
                                                 MPerBlock,
                                                 NPerBlock,
                                                 K0PerBlock,
-                                                MPerXDL,
-                                                NPerXDL,
+                                                MPerXdl,
+                                                NPerXdl,
                                                 K1Value,
                                                 MXdlPerWave,
                                                 NXdlPerWave,
@@ -957,13 +968,16 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3_ext
         }
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
+
     __host__ static constexpr bool CheckValidity(const Problem& problem)
     {
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
