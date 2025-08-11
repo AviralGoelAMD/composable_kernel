@@ -90,8 +90,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MXdlPerWave,
           index_t NXdlPerWave,
@@ -124,10 +124,10 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     static constexpr auto K1 = Number<K1Value>{};
 
     static constexpr index_t WaveSize = 64;
-    static constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXDL);
-    static constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXDL);
+    static constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXdl);
+    static constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXdl);
 
-    static constexpr auto xdlops_gemm    = XdlopsGemm<FloatAB, MPerXDL, NPerXDL, K1>{};
+    static constexpr auto xdlops_gemm    = XdlopsGemm<FloatAB, MPerXdl, NPerXdl, K1>{};
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
@@ -168,6 +168,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
         return (a_block_space_size_aligned) * sizeof(FloatAB);
     }
 
+    using CDataType = FloatC;
+    IS_VALID_COMPILATION_PARAMETER_IMPL
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ __device__ static constexpr bool
     CheckValidity(const AGridDesc_K0_M_K1& a_grid_desc_k0_m_k1,
@@ -179,8 +181,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
         static_assert(is_known_at_compile_time<remove_cv_t<decltype(K1)>>::value,
                       "wrong! K1 need to be known at compile-time");
 
-        static_assert((MPerBlock % (MPerXDL * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXDL)) == 0,
+        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
+                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
         const auto M  = a_grid_desc_k0_m_k1.GetLength(I1);
@@ -246,7 +248,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
             make_tuple(make_unmerge_transform(
                            make_tuple(K0 / K0PerBlock, xdlops_gemm.K0PerXdlops, K0PerThread)),
                        make_unmerge_transform(make_tuple(
-                           N / (NXdlPerWave * NWaves * NPerXDL), NXdlPerWave, NWaves, NPerXDL)),
+                           N / (NXdlPerWave * NWaves * NPerXdl), NXdlPerWave, NWaves, NPerXdl)),
                        make_pass_through_transform(K1)),
             make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
             make_tuple(Sequence<0, 1, 2>{}, Sequence<3, 4, 5, 6>{}, Sequence<7>{}));
@@ -268,7 +270,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     __device__ static auto GetWaveKNIdx(const index_t thread_id)
     {
         constexpr auto wave_threadid_to_nk_idx_adaptor = make_single_stage_tensor_adaptor(
-            make_tuple(make_merge_transform(make_tuple(xdlops_gemm.K0PerXdlops, NPerXDL))),
+            make_tuple(make_merge_transform(make_tuple(xdlops_gemm.K0PerXdlops, NPerXdl))),
             make_tuple(Sequence<0, 1>{}),
             make_tuple(Sequence<0>{}));
 
@@ -315,8 +317,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
             MPerBlock,
             NPerBlock,
             K0PerBlock,
-            MPerXDL,
-            NPerXDL,
+            MPerXdl,
+            NPerXdl,
             MXdlPerWave,
             NXdlPerWave,
             K1>;
@@ -514,8 +516,8 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
             MPerBlock,
             NPerBlock,
             K0PerBlock,
-            MPerXDL,
-            NPerXDL,
+            MPerXdl,
+            NPerXdl,
             MXdlPerWave,
             NXdlPerWave,
             K1>{};

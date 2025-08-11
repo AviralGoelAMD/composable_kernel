@@ -520,7 +520,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
 
     struct ActiveWorkgroupsPerCU
     {
-        ActiveWorkgroupsPerCU()
+        template <typename GridwiseGemm>
+        int GetMaxOccupancy()
         {
             constexpr int dynamic_smem_size = 0;
             constexpr index_t minimum_occupancy =
@@ -561,7 +562,26 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                     BlockSize,
                     dynamic_smem_size));
             }
-            max_occupancy_ = std::max(1, max_occupancy);
+            return std::max(1, max_occupancy);
+        }
+
+        ActiveWorkgroupsPerCU()
+        {
+            max_occupancy_ = 1;
+            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm64>();
+                }
+            }
+            else
+            {
+                                if constexpr (NXdlPerWave32 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm32>();
+                }
+            }
         }
         int max_occupancy_;
     };
@@ -1640,7 +1660,7 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                                                    grid_size_a);
             }
 
-            avg_time += RunGemmV3(arg, stream_config);
+            avg_time += RunGemmV3<GridwiseGemm>(arg, stream_config);
             avg_time += launch_elementwise_kernel();
             return avg_time;
         }

@@ -129,8 +129,8 @@ template <index_t NDimSpatial,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXdl,
-          ck::index_t NPerXdl,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -322,8 +322,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXdl,
-        NPerXdl,
+        MPerXDL,
+        NPerXDL,
         K1,
         MXdlPerWave,
         NXdlPerWave_,
@@ -549,14 +549,15 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =
-        decltype(GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
+        decltype(GridwiseGemm64::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(CGridDesc_M_N{}));
 
     using Block2CTileMap =
-        decltype(GridwiseGemm::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
+        decltype(GridwiseGemm64::MakeCBlockClusterAdaptor(CGridDesc_M_N{}, 1, 1, 1));
 
     struct ActiveWorkgroupsPerCU
     {
-        ActiveWorkgroupsPerCU()
+        template<typename GridwiseGemm>
+        int GetMaxOccupancy()
         {
             constexpr int dynamic_smem_size = 0;
             int max_occupancy               = 0;
@@ -578,7 +579,26 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                     true>,
                 BlockSize,
                 dynamic_smem_size));
-            max_occupancy_ = std::max(1, max_occupancy);
+            return  std::max(1, max_occupancy);
+        }
+
+        ActiveWorkgroupsPerCU()
+        {
+            max_occupancy_ = 1;
+            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm64>();
+                }
+            }
+            else
+            {
+               if constexpr (NXdlPerWave32 > 0)
+                {
+                    max_occupancy_ = GetMaxOccupancy<GridwiseGemm32>();
+                }                
+            }
         }
         int max_occupancy_;
     };
@@ -705,7 +725,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                 MakeDsGridDescriptor_M_N<NDimSpatial>(ds_g_k_c_xs_lengths, ds_g_k_c_xs_strides);
 
             block_2_ctile_map_ =
-                GridwiseGemm::MakeCBlockClusterAdaptor(ce_grid_desc_m_n_, M01, N01, k_batch_);
+                GridwiseGemm64::MakeCBlockClusterAdaptor(ce_grid_desc_m_n_, M01, N01, k_batch_);
             elementwise_block_2_ctile_map_ = Block2TileMapElementwise{
                 ce_grid_desc_m_n_.GetLength(I0), ce_grid_desc_m_n_.GetLength(I1)};
 
@@ -719,15 +739,36 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
                                 index_t{1},
                                 std::multiplies<>{});
 
-            if(GridwiseGemm::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
+                                            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+            if(GridwiseGemm64::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
                                            b_grid_desc_kbatch_k0_n_k1_,
                                            ce_grid_desc_m_n_,
                                            block_2_ctile_map_))
             {
                 c_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
+                    GridwiseGemm64::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
                         ce_grid_desc_m_n_);
             }
+        }
+    }
+    else
+    {
+                if constexpr (NXdlPerWave32 > 0)
+                {
+            if(GridwiseGemm32::CheckValidity(a_grid_desc_kbatch_k0_m_k1_,
+                                           b_grid_desc_kbatch_k0_n_k1_,
+                                           ce_grid_desc_m_n_,
+                                           block_2_ctile_map_))
+            {
+                c_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm32::MakeCGridDesc_MBlock_MPerBlock_NBlock_NPerBlock(
+                        ce_grid_desc_m_n_);
+            }
+        }
+    }
         }
 
         std::size_t GetWorkspaceSizeBytes() const
@@ -797,7 +838,7 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
@@ -991,10 +1032,28 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         }
 
         // Gridwise GEMM size
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
+        
+                                            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+        return GridwiseGemm64::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
                                            arg.b_grid_desc_kbatch_k0_n_k1_,
                                            arg.ce_grid_desc_m_n_,
                                            arg.block_2_ctile_map_);
+        }
+    }
+    else
+    {
+ if constexpr (NXdlPerWave32 > 0)
+                {
+        return GridwiseGemm32::CheckValidity(arg.a_grid_desc_kbatch_k0_m_k1_,
+                                           arg.b_grid_desc_kbatch_k0_n_k1_,
+                                           arg.ce_grid_desc_m_n_,
+                                           arg.block_2_ctile_map_);
+        }
+    }
+    return false;
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

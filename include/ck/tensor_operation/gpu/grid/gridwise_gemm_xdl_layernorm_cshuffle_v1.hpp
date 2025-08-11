@@ -59,7 +59,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
-    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
@@ -246,6 +246,7 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                              c_lds_workspace_size * sizeof(FloatReduceAcc));
     }
 
+    using CDataType = FloatC;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}

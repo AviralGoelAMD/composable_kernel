@@ -319,7 +319,7 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
             if constexpr(NXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(
-                    reinterpret_cast<const GridwiseGemm32::Argument&>(karg));
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(karg));
             }
         }
         return false;

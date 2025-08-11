@@ -135,6 +135,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
                                                                 BElementwiseOperation,
                                                                 CDEElementwiseOperation>
 {
+    static constexpr auto BlockSize = math::max(TileLoadThreadGroupSize, TileMathThreadGroupSize);
     GET_NXDL_PER_WAVE_IMPL
     static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
     static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
@@ -257,13 +258,13 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     using AGridDesc_AK0_M_AK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(
             AGridDesc_M_K{}))>;
     using BGridDesc_BK0_N_BK1 =
-        remove_cvref_t<decltype(GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(
+        remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(
             BGridDesc_N_K{}))>;
 
-    using Block2ETileMap = typename GridwiseGemm::DefaultBlock2ETileMap;
+    using Block2ETileMap = typename GridwiseGemm64::DefaultBlock2ETileMap;
 
     // Argument
     struct Argument : public BaseArgument
@@ -287,22 +288,41 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               e_grid_desc_m_n_{DeviceOp::MakeEGridDescriptor_M_N<ELayout>(MRaw, NRaw, StrideE)},
               a_grid_desc_ak0_m_ak1_{
-                  GridwiseGemm::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+                  GridwiseGemm64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
-                  GridwiseGemm::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+                  GridwiseGemm64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               e_grid_desc_mblock_mperblock_nblock_nperblock_{},
-              block_2_etile_map_{GridwiseGemm::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
+              block_2_etile_map_{GridwiseGemm64::MakeDefaultBlock2ETileMap(e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op}
         {
-            if(GridwiseGemm::CheckValidity(
+            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+            if(GridwiseGemm64::CheckValidity(
                    a_grid_desc_m_k_, b_grid_desc_n_k_, e_grid_desc_m_n_, block_2_etile_map_))
             {
                 e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemm::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    GridwiseGemm64::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         e_grid_desc_m_n_);
             }
+        }
+    }
+    else
+    {
+          if constexpr (NXdlPerWave32 > 0)
+                {
+            if(GridwiseGemm32::CheckValidity(
+                   a_grid_desc_m_k_, b_grid_desc_n_k_, e_grid_desc_m_n_, block_2_etile_map_))
+            {
+                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
+                    GridwiseGemm32::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                        e_grid_desc_m_n_);
+            }
+        }
+    }
         }
 
         void Print() const
@@ -326,7 +346,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
         // tensor descriptors for block/thread-wise copy
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemm64::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // block-to-e-tile map
@@ -344,7 +364,7 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
 #if 0
@@ -435,11 +455,27 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
+            if (get_warp_size() == 64)
+            {
+                if constexpr (NXdlPerWave64 > 0)
+                {
+        return GridwiseGemm64::CheckValidity(arg.a_grid_desc_m_k_,
                                            arg.b_grid_desc_n_k_,
                                            arg.e_grid_desc_m_n_,
                                            arg.block_2_etile_map_);
+        }
+    }
+    else
+    {
+         if constexpr (NXdlPerWave32 > 0)
+                {
+        return GridwiseGemm32::CheckValidity(arg.a_grid_desc_m_k_,
+                                           arg.b_grid_desc_n_k_,
+                                           arg.e_grid_desc_m_n_,
+                                           arg.block_2_etile_map_);
+        }
+    }
+    return false;
     }
 
     // polymorphic

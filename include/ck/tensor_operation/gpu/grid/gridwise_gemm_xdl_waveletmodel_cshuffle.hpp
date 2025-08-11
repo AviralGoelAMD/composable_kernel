@@ -77,6 +77,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
     static constexpr auto BK1         = Number<BK1Value>{};
     static constexpr auto AK0PerBlock = Number<KPerBlock / AK1Value>{};
     static constexpr auto BK0PerBlock = Number<KPerBlock / BK1Value>{};
+    static constexpr auto BlockSize = math::max(TileLoadThreadGroupSize, TileMathThreadGroupSize);
 
     struct TileLoadThreadGroup
     {
@@ -171,6 +172,7 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdl_waveletmodel_cshuffle
                          c_block_size * sizeof(EDataTypeShuffle));
     }
 
+    using CDataType = EDataType;
     IS_VALID_COMPILATION_PARAMETER_IMPL
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}

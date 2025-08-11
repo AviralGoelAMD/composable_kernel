@@ -414,7 +414,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm::DefaultBlock2CTileMap>;
+    using Block2CTileMap = OffsettedBlockToCTileMap<typename GridwiseGemm64::DefaultBlock2CTileMap>;
 
     struct GroupKernelArg
     {
@@ -428,7 +428,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
         BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
         B1GridDesc_BK0_N_BK1 b1_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemm::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemm64::CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             c_grid_desc_mblock_mperblock_nblock_nperblock_;
 
         // batch & stride
@@ -525,7 +525,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                     problem_desc.c_gs_ms_os_lengths, problem_desc.c_gs_ms_os_strides);
 
                 const auto c_grid_desc_mblock_mperblock_nblock_nperblock =
-                    GridwiseGemm::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                    GridwiseGemm64::MakeCGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
                         c_grid_desc_m_n);
 
                 const index_t BlockStart     = grid_size_;
@@ -607,7 +607,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         using Argument = DeviceOp::Argument;
 
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
             if(!DeviceOp::IsSupportedArgument(arg))
@@ -725,7 +725,7 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
             // Check if having main loop
             const auto K = kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I0) *
                            kernel_arg.a_grid_desc_ak0_m_ak1_.GetLength(I2);
-            const bool y = GridwiseGemm::CalculateHasMainKBlockLoop(K);
+            const bool y = GridwiseGemm64::CalculateHasMainKBlockLoop(K);
             all_has_main_k_block_loop &= y;
             some_has_main_k_block_loop |= y;
 
@@ -770,14 +770,31 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
                 return false;
             }
 
-            if(!GridwiseGemm::CheckValidity(kernel_arg.a_grid_desc_ak0_m_ak1_,
+            bool valid = false;
+            if (get_warp_size() == 64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+             valid = GridwiseGemm64::CheckValidity(kernel_arg.a_grid_desc_ak0_m_ak1_,
                                             kernel_arg.b_grid_desc_bk0_n_bk1_,
                                             kernel_arg.b1_grid_desc_bk0_n_bk1_,
                                             device_arg.c_grid_desc_m_n_,
-                                            kernel_arg.block_2_ctile_map_))
-            {
-                return false;
+                                            kernel_arg.block_2_ctile_map_) ;
             }
+        }
+        else
+        {
+             if constexpr(NXdlPerWave32 > 0)
+                {
+             valid = GridwiseGemm32::CheckValidity(kernel_arg.a_grid_desc_ak0_m_ak1_,
+                                            kernel_arg.b_grid_desc_bk0_n_bk1_,
+                                            kernel_arg.b1_grid_desc_bk0_n_bk1_,
+                                            device_arg.c_grid_desc_m_n_,
+                                            kernel_arg.block_2_ctile_map_) ;
+            } 
+        }
+        if (!valid)
+            return false;
         }
 
         // all gemm problems have to simultaneously meet has_main_k_block_loop or

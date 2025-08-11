@@ -564,7 +564,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
         constexpr index_t minimum_occupancy =
             BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave ? 1 : 2;
         index_t K_split                  = (K + KPerBlock - 1) / KPerBlock * KPerBlock;
-        const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
+       
         int occupancy = 1, num_cu = 1;
         const auto calculate_grid_size = [&](const auto& kernel) {
             hip_check_error(
@@ -579,6 +579,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
 
         if constexpr(IsValid)
         {
+            const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -815,6 +816,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                                                             b_op,
                                                             c_op,
                                                             reduction_strategy);
+ 
         }
         else
         {

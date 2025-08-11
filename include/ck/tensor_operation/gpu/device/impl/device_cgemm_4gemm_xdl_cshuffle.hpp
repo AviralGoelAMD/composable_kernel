@@ -174,9 +174,9 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     using CGridDesc_M_N = decltype(MakeDescriptor_M_N({1, 1}, {1, 1}));
 
     // Argument
-    struct Argument : public tensor_operation::device::BaseArgument, public GridwiseGemm::Problem
+    struct Argument : public tensor_operation::device::BaseArgument, public GridwiseGemm64::Problem
     {
-        using Problem = typename GridwiseGemm::Problem;
+        using Problem = typename GridwiseGemm64::Problem;
 
         Argument(const ADataType* p_a_grid_real_,
                  const ADataType* p_a_grid_imag_,
@@ -228,7 +228,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
     struct Invoker : public BaseInvoker
     {
         template <typename GridwiseGemm>
-        float RunImp(const typename GridwiseGemm::Argument& arg,
+        float RunImp(const Argument& arg,
                      const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
@@ -236,7 +236,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                 arg.Print();
             }
 
-            if(!GridwiseGemm::CheckValidity(arg))
+            typename GridwiseGemm::Problem problem(arg.M, arg.N, arg.K, arg.StrideA, arg.StrideB, arg.StrideC);
+            if(!GridwiseGemm::CheckValidity(problem))
             {
                 throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
@@ -325,7 +326,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_real,
                                                    arg.p_b_grid_real,
                                                    arg.p_aux_grid,
-                                                   arg);
+                                                   problem);
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -335,7 +336,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_imag,
                                                    arg.p_b_grid_imag,
                                                    arg.p_aux_2_grid,
-                                                   arg);
+                                                   problem);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
@@ -360,7 +361,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_real,
                                                    arg.p_b_grid_imag,
                                                    arg.p_aux_grid,
-                                                   arg);
+                                                   problem);
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -370,7 +371,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_imag,
                                                    arg.p_b_grid_real,
                                                    arg.p_aux_2_grid,
-                                                   arg);
+                                                   problem);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
@@ -403,7 +404,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_real,
                                                    arg.p_b_grid_real,
                                                    arg.p_aux_grid,
-                                                   arg);
+                                                   problem);
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -413,7 +414,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_imag,
                                                    arg.p_b_grid_imag,
                                                    arg.p_aux_2_grid,
-                                                   arg);
+                                                   problem);
 
                 // c_real = aux - aux_2
                 ave_time += launch_and_time_kernel(
@@ -438,7 +439,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_real,
                                                    arg.p_b_grid_imag,
                                                    arg.p_aux_grid,
-                                                   arg);
+                                                   problem);
 
                 ave_time += launch_and_time_kernel(stream_config,
                                                    kernel,
@@ -448,7 +449,7 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
                                                    arg.p_a_grid_imag,
                                                    arg.p_b_grid_real,
                                                    arg.p_aux_2_grid,
-                                                   arg);
+                                                   problem);
 
                 // c_imag = aux + aux_2
                 ave_time += launch_and_time_kernel(
@@ -491,8 +492,21 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(arg);
+       if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+        return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+                      if constexpr(NXdlPerWave32 > 0)
+            {
+                typename GridwiseGemm32::Problem problem(arg.M, arg.N, arg.K, arg.StrideA, arg.StrideB, arg.StrideC);
+        return GridwiseGemm32::CheckValidity(problem);
+            }  
+        }
     }
 
     // polymorphic
@@ -597,8 +611,8 @@ struct DeviceCGemm_4Gemm_Xdl_CShuffle
 
     static std::size_t GetCElementSpaceSize(index_t M, index_t N, index_t StrideC)
     {
-        const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(
-            M, GridwiseGemm::CalculateMPadded(M), N, GridwiseGemm::CalculateNPadded(N), StrideC);
+        const auto c_grid_desc_m_n = GridwiseGemm64::MakeCGridDescriptor_M_N(
+            M, GridwiseGemm64::CalculateMPadded(M), N, GridwiseGemm64::CalculateNPadded(N), StrideC);
 
         return c_grid_desc_m_n.GetElementSpaceSize();
     }
