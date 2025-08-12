@@ -12,15 +12,15 @@ using AccDataType      = float;
 using CShuffleDataType = ck::half_t;
 using CDataType        = ck::half_t;
 
-using ALayout = Row;
-using BLayout = Col;
+using ALayout = Col;
+using BLayout = Row;
 using CLayout = Row;
 
 using AElementOp = PassThrough;
 using BElementOp = PassThrough;
 using CElementOp = PassThrough;
 
-static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::MNPadding;
+static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // clang-format off
 #if 1
@@ -30,6 +30,7 @@ using DeviceGemmV2Instance =
         ALayout,   BLayout,  CLayout,   
         ADataType,   BDataType,  CDataType,  AccDataType,  CShuffleDataType, 
         PassThrough, PassThrough, PassThrough, GemmDefault, 
+        #if 0
         64,
         16, 32, //32
         64, 8, 8,
@@ -40,7 +41,18 @@ using DeviceGemmV2Instance =
         S<8, 8, 1>,  S<1, 0, 2>,  S<1, 0, 2>, 
         2, 8, 8, 0,
         1, 1, S<1, 16, 1, 4>, 4,
-        ck::BlockGemmPipelineScheduler::Interwave, ck::BlockGemmPipelineVersion::v1>;
+        #endif
+            128,
+    128, 64,
+    64, 8, 8,
+    16, 16,
+    4, 4,
+    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    1, 1, 8, 1,
+    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    1, 1, 8, 1,
+    1, 1, S<1, 32, 1, 4>, 8,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3>;
 #endif
 
 #if 0
