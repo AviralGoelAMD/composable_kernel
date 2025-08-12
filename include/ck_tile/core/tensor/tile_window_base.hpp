@@ -54,7 +54,7 @@ struct tile_window_base
         // Delegate to child if it implements extra logic
         static_cast<TileWindowType_*>(this)->set_window_origin_extended(new_window_origin);
     }
-    // Default no-op; can be overridden in child
+    // Default no-op; can be overridden in childL
     CK_TILE_DEVICE void set_window_origin_extended(const BottomTensorIndex&) {}
 
     CK_TILE_DEVICE constexpr void

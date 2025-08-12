@@ -52,6 +52,8 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     args.stride_B  = stride_B;
     args.stride_C  = stride_C;
     args.stride_AQ = stride_AQ;
+    n_warmup       = 0;
+    n_repeat       = 1;
 
     std::cout << __func__ << " kbatch: " << kbatch << std::endl;
 
