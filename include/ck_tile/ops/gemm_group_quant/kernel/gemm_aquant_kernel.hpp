@@ -638,10 +638,35 @@ struct AQuantGemmKernel
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
+        // // let us print the num_loop
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("*********threadIdx.x: %u, blockIdx.x: %u*********\n", threadIdx.x,
+        //     blockIdx.x); printf("num_loop: %d\n", num_loop);
+        //     printf("****************************************************\n");
+        // }
+
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window  = gemm_tile_windows.at(I0);
         const auto& aq_block_window = gemm_tile_windows.at(I1);
         const auto& b_block_window  = gemm_tile_windows.at(I2);
+
+        // let us print the window shapes
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+            printf("***********Tile Window Shapes being sent to memory pipeline**************\n");
+            printf("*********threadIdx.x: %u, blockIdx.x: %u*********\n", threadIdx.x, blockIdx.x);
+            printf("a_block_window shape: [%d, %d]\n",
+                   static_cast<index_t>(a_block_window.get_window_lengths()[number<0>{}]),
+                   static_cast<index_t>(a_block_window.get_window_lengths()[number<1>{}]));
+            printf("b_block_window shape: [%d, %d]\n",
+                   static_cast<index_t>(b_block_window.get_window_lengths()[number<0>{}]),
+                   static_cast<index_t>(b_block_window.get_window_lengths()[number<1>{}]));
+            printf("aq_block_window shape: [%d, %d]\n",
+                   static_cast<index_t>(aq_block_window.get_window_lengths()[number<0>{}]),
+                   static_cast<index_t>(aq_block_window.get_window_lengths()[number<1>{}]));
+            printf("****************************************************\n");
+        }
 
         const auto& c_block_tile = GemmPipeline{}.template operator()(
             a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0);

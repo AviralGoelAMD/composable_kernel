@@ -17,7 +17,7 @@
 #include "ck_tile/host/ranges.hpp"
 
 // Error reporting configuration
-#define CK_TILE_ERROR_COUNT_LIMIT 20
+#define CK_TILE_ERROR_COUNT_LIMIT 10
 
 namespace ck_tile {
 
