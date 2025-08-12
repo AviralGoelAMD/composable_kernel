@@ -186,9 +186,9 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << __func__ << " A matrix is filled with 34" << std::endl;
         std::cout << __func__ << " AQ matrix is filled with 0.5" << std::endl;
         std::cout << __func__ << " B matrix is filled with 56" << std::endl;
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
-        ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1.0f)}(a_m_k);
+        ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(1.0f)}(aq_m_aqk);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1.0f)}(b_k_n);
     }
     else
     {
