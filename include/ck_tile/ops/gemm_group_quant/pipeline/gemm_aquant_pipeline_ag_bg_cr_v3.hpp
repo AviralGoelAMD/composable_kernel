@@ -630,7 +630,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 5; }, c_block_tile);
+            tile_elementwise_inout([](auto& c) { c = 4; }, c_block_tile);
 
             // LDS prefill
             if constexpr(is_a_col_major)
