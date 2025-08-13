@@ -123,9 +123,9 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1
     // K1 should be Number<...>
     static constexpr auto K1 = Number<K1Value>{};
 
-    static constexpr index_t WaveSize = 64;
     static constexpr index_t MWaves   = MPerBlock / (MXdlPerWave * MPerXdl);
     static constexpr index_t NWaves   = NPerBlock / (NXdlPerWave * NPerXdl);
+    static constexpr index_t WaveSize = BlockSize / (MWaves * NWaves);
 
     static constexpr auto xdlops_gemm    = XdlopsGemm<FloatAB, MPerXdl, NPerXdl, K1>{};
     static constexpr index_t K0PerThread = K0PerBlock / xdlops_gemm.K0PerXdlops;
