@@ -325,7 +325,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            tile_elementwise_inout([](auto& c) { c = 1; }, c_block_tile);
 
             if constexpr(is_a_col_major)
             {
@@ -622,6 +622,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 is_aq_col_major ? make_array(KPerBlockAQ, 0) : make_array(0, KPerBlockAQ);
 
             // Global prefetch initialization
+            // DRAM to VGPRs
             Base::GlobalPrefetch(
                 a_block_tiles.get(I0{}), a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(
@@ -629,7 +630,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 2; }, c_block_tile);
+            tile_elementwise_inout([](auto& c) { c = 5; }, c_block_tile);
 
             // LDS prefill
             if constexpr(is_a_col_major)
@@ -641,6 +642,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             }
             else
             {
+                // VGPRs to LDS
                 Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
             }
             if constexpr(is_b_row_major)
@@ -652,6 +654,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             }
             else
             {
+                // VGPRs to LDS
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
             }
 

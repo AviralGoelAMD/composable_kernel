@@ -189,9 +189,9 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        std::cout << __func__ << " A matrix is filled with 34" << std::endl;
-        std::cout << __func__ << " AQ matrix is filled with 0.5" << std::endl;
-        std::cout << __func__ << " B matrix is filled with 56" << std::endl;
+        std::cout << __func__ << " A matrix is filled with 2" << std::endl;
+        std::cout << __func__ << " AQ matrix is filled with 1" << std::endl;
+        std::cout << __func__ << " B matrix is filled with 3" << std::endl;
         ck_tile::FillConstant<ADataType>{static_cast<ADataType>(2.0f)}(a_m_k);
         ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(1.0f)}(aq_m_aqk);
         ck_tile::FillConstant<BDataType>{static_cast<BDataType>(3.0f)}(b_k_n);
