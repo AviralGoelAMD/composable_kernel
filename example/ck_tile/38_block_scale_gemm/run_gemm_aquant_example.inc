@@ -56,6 +56,12 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     n_repeat       = 1;
 
     std::cout << __func__ << " kbatch: " << kbatch << std::endl;
+    // transfer devicemem a to host and print
+    // ck_tile::HostTensor<ADataType> a_m_k_host(
+    // ck_tile::host_tensor_descriptor(M, K, stride_A, ck_tile::bool_constant<true>{}));
+    // a_m_k_dev_buf.FromDevice(a_m_k_host.data());
+    // std::cout << __func__ << "A matrix: " << std::endl;
+    // std::cout << a_m_k_host << std::endl;
 
     float ave_time = gemm_calc_aquant<ADataType,
                                       AQDataType,
@@ -186,9 +192,9 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << __func__ << " A matrix is filled with 34" << std::endl;
         std::cout << __func__ << " AQ matrix is filled with 0.5" << std::endl;
         std::cout << __func__ << " B matrix is filled with 56" << std::endl;
-        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1.0f)}(a_m_k);
+        ck_tile::FillConstant<ADataType>{static_cast<ADataType>(2.0f)}(a_m_k);
         ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(1.0f)}(aq_m_aqk);
-        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1.0f)}(b_k_n);
+        ck_tile::FillConstant<BDataType>{static_cast<BDataType>(3.0f)}(b_k_n);
     }
     else
     {
@@ -198,10 +204,10 @@ int run_gemm_example_with_layouts(int argc,
     }
     // std::cout << "A matrix: " << std::endl;
     // std::cout << a_m_k << std::endl;
-    // std::cout << "AQ matrix: " << std::endl;
-    // std::cout << aq_m_aqk << std::endl;
-    // std::cout << "B matrix: " << std::endl;
-    // std::cout << b_k_n << std::endl;
+    //  std::cout << "AQ matrix: " << std::endl;
+    //  std::cout << aq_m_aqk << std::endl;
+    //  std::cout << "B matrix: " << std::endl;
+    //  std::cout << b_k_n << std::endl;
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
