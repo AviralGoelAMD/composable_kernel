@@ -15,9 +15,7 @@
 #ifdef CK_USE_WMMA
 #include "gemm_universal_wmma.inc"
 #endif
-#ifdef CK_USE_XDL
 #include "gemm_universal_xdl.inc"
-#endif
 
 namespace ck {
 namespace tensor_operation {
