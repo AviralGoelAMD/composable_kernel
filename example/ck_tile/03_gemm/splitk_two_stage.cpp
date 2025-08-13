@@ -4,7 +4,7 @@
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
-#include "gemm_basic_invoker.hpp"
+#include "splitk_two_stage_invoker.hpp"
 
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
@@ -13,7 +13,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string a_layout    = arg_parser.get_str("a_layout");
     std::string b_layout    = arg_parser.get_str("b_layout");
 
-    using Invoker = BasicInvoker;
+    using Invoker = SplitKTwoStageInvoker;
 
     if(data_type != "bf16")
     {
