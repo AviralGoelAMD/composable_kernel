@@ -769,8 +769,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                     if constexpr(std::is_same_v<decltype(value), fp8_t>)
                     {
                         // Convert fp8_t to float
-                        auto float_value = type_convert<int>(value);
-                        printf("  [%d] = %d\n", i, float_value);
+                        auto float_value = type_convert<float>(value);
+                        printf("  [%d] = %f\n", i, float_value);
                     }
                 }
 
@@ -784,8 +784,8 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                     if constexpr(std::is_same_v<decltype(value), fp8_t>)
                     {
                         // Convert fp8_t to float
-                        auto float_value = type_convert<int>(value);
-                        printf("  [%d] = %d\n", i, float_value);
+                        auto float_value = type_convert<float>(value);
+                        printf("  [%d] = %f\n", i, float_value);
                     }
                 }
 
