@@ -39,7 +39,7 @@ using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Xdl_CShuff
     2, 8, 8, 0,
     S<4, 32, 1>, S<1, 0, 2>, S<1, 0, 2>,
     2, 8, 8, 0,
-    1, 1, S<1, 32, 1, 4>, 8,
+    1, 1, S<1, 32, 1, 4>, 4,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1,
     ComputeTypeA, ComputeTypeB>;
 // clang-format on

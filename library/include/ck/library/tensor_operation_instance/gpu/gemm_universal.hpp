@@ -311,7 +311,6 @@ struct DeviceOperationInstanceFactory<
 #endif
 #endif // CK_USE_WMMA
 
-#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
         if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
                      is_same_v<CDataType, half_t>)
@@ -603,7 +602,6 @@ struct DeviceOperationInstanceFactory<
             }
         }
 #endif
-#endif // CK_USE_XDL
 
         return op_ptrs;
     }
