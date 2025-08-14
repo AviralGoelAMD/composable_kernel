@@ -192,15 +192,15 @@ int run_gemm_example_with_layouts(int argc,
         std::cout << __func__ << " A matrix is filled with 3" << std::endl;
         std::cout << __func__ << " AQ matrix is filled with 2" << std::endl;
         std::cout << __func__ << " B matrix is filled with 4" << std::endl;
-        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(2.0f)}(a_m_k);
-        // ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(2.0f)}(aq_m_aqk);
-        float init_v = 0.0f;
-        for(auto&& aq : aq_m_aqk)
-        {
-            aq = ck_tile::type_convert<AQDataType>(init_v);
-            init_v += 0.1f;
-        }
-        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(2.0f)}(b_k_n);
+        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(1.1f)}(a_m_k);
+        ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.1f)}(aq_m_aqk);
+        // float init_v = 0.0f;
+        // for(auto&& aq : aq_m_aqk)
+        // {
+        //     aq = ck_tile::type_convert<AQDataType>(init_v);
+        //     init_v += 0.1f;
+        // }
+        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(1.1f)}(b_k_n);
     }
     else
     {

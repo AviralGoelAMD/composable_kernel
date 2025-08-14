@@ -641,17 +641,18 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
 
                             float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
 
-                            if(get_block_id() == 0 && get_warp_id() == 0)
-                            {
-                                // printf("mIter=%d, nIter=%d, kQScale=%d, kIterInQScale=%d\n",
-                                // mIter, nIter, kQScale, kIterInQScale); printf("src_reg_offset=%d,
-                                // src_lane_idx=%d, scale_reg_dword=%d\n", src_reg_offset,
-                                // src_lane_idx, scale_reg_dword);
-                                printf("threadid.x %u, src_lane_idx=%u, scale_reg_f=%f\n",
-                                       threadIdx.x,
-                                       src_lane_idx,
-                                       scale_reg_f);
-                            }
+                            // if(get_block_id() == 0 && get_warp_id() == 0)
+                            // {
+                            //     // printf("mIter=%d, nIter=%d, kQScale=%d, kIterInQScale=%d\n",
+                            //     // mIter, nIter, kQScale, kIterInQScale);
+                            //     printf("src_reg_offset=%d,
+                            //     // src_lane_idx=%d, scale_reg_dword=%d\n", src_reg_offset,
+                            //     // src_lane_idx, scale_reg_dword);
+                            //     printf("threadid.x %u, src_lane_idx=%u, scale_reg_f=%f\n",
+                            //            threadIdx.x,
+                            //            src_lane_idx,
+                            //            scale_reg_f);
+                            // }
                             c_block_tensor
                                 .get_thread_buffer()[tbuf_offset + reg_offset_for_row_data] +=
                                 (c_warp_tensor.get_thread_buffer()[reg_offset_for_row_data] *
@@ -664,14 +665,14 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
                     //     c_warp_tensor.get_thread_buffer());
                 });
             });
-            if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
-            {
-                // auto& tbuf = c_block_tensor.get_thread_buffer();
-                //  print thread buffer .size()
-                // printf("c_block_tile_before_interwave: thread buffer size: %d\n", tbuf.size());
-                // const float v = type_convert<float>(tbuf.get(0));
-                // printf("c_block_tile_before_interwave: %f at thread %d\n", v, get_thread_id());
-            }
+            // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
+            //{
+            //  auto& tbuf = c_block_tensor.get_thread_buffer();
+            //   print thread buffer .size()
+            //  printf("c_block_tile_before_interwave: thread buffer size: %d\n", tbuf.size());
+            //  const float v = type_convert<float>(tbuf.get(0));
+            //  printf("c_block_tile_before_interwave: %f at thread %d\n", v, get_thread_id());
+            //}
         }
     };
 

@@ -72,10 +72,10 @@ float gemm_calc_aquant(const ck_tile::AQuantGemmHostArgs& args, const ck_tile::s
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(
         num_loop); // hotloop(true) Full, else: num_loop == 1 ? Odd : Even
     constexpr bool transposed_warp_gemm = false;
-    // std::cout << __func__ << " k_split: " << K_split << std::endl;
-    // std::cout << __func__ << " num_loop (K/KPerBlock): " << num_loop << std::endl;
-    // std::cout << __func__ << " has_hot_loop: " << has_hot_loop << std::endl;
-    // std::cout << __func__ << " tail_num: " << tail_num << std::endl;
+    std::cout << __func__ << " k_split: " << K_split << std::endl;
+    std::cout << __func__ << " num_loop (K/KPerBlock): " << num_loop << std::endl;
+    std::cout << __func__ << " has_hot_loop: " << has_hot_loop << std::endl;
+    std::cout << __func__ << " tail_num: " << tail_num << std::endl;
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;

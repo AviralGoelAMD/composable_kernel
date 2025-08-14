@@ -659,24 +659,24 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             }
 
             // Additional prefetching for memory pipeline
-            // static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-            //     // only print for one thread
-            //     if(threadIdx.x == 0 && blockIdx.x == 0)
-            //     {
-            //         printf("****************************************************\n");
-            //         printf("Prefetch loop executing with idx: %d\n", prefetch_idx.value);
-            //         printf("****************************************************\n");
-            //     }
-            //     Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-            //                          a_copy_dram_window,
-            //                          a_dram_tile_window_step);
-            //     Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-            //                          b_copy_dram_window,
-            //                          b_dram_tile_window_step);
-            //     Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
-            //                          aq_copy_dram_window,
-            //                          aq_dram_tile_window_step);
-            // });
+            static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
+                // only print for one thread
+                // if(threadIdx.x == 0 && blockIdx.x == 0)
+                // {
+                //     printf("****************************************************\n");
+                //     printf("Prefetch loop executing with idx: %d\n", prefetch_idx.value);
+                //     printf("****************************************************\n");
+                // }
+                Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                     a_copy_dram_window,
+                                     a_dram_tile_window_step);
+                Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                     b_copy_dram_window,
+                                     b_dram_tile_window_step);
+                Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
+                                     aq_copy_dram_window,
+                                     aq_dram_tile_window_step);
+            });
 
             // Main hot loop for memory pipeline
             if constexpr(HasHotLoop)
@@ -740,19 +740,16 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                     i += PrefetchStages;
                 } while(i < (num_loop - PrefetchStages));
             }
-            if(threadIdx.x == 0 && blockIdx.x == 0)
-            {
-                printf("****************************************************\n");
-                printf("a_lds_gemm_window shape: [%d, %d]\n",
-                       static_cast<index_t>(a_lds_gemm_window.get_window_lengths()[number<0>{}]),
-                       static_cast<index_t>(a_lds_gemm_window.get_window_lengths()[number<1>{}]));
-                printf("b_lds_gemm_window shape: [%d, %d]\n",
-                       static_cast<index_t>(b_lds_gemm_window.get_window_lengths()[number<0>{}]),
-                       static_cast<index_t>(b_lds_gemm_window.get_window_lengths()[number<1>{}]));
-            }
-
-            // Tail handling
-            block_sync_lds();
+            // if(threadIdx.x == 0 && blockIdx.x == 0)
+            // {
+            //     printf("****************************************************\n");
+            //     printf("a_lds_gemm_window shape: [%d, %d]\n",
+            //            static_cast<index_t>(a_lds_gemm_window.get_window_lengths()[number<0>{}]),
+            //            static_cast<index_t>(a_lds_gemm_window.get_window_lengths()[number<1>{}]));
+            //     printf("b_lds_gemm_window shape: [%d, %d]\n",
+            //            static_cast<index_t>(b_lds_gemm_window.get_window_lengths()[number<0>{}]),
+            //            static_cast<index_t>(b_lds_gemm_window.get_window_lengths()[number<1>{}]));
+            // }
 
             // if(threadIdx.x == 0 && blockIdx.x == 0)
             // {
@@ -805,8 +802,22 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             //     }
             // }
 
+            // Tail handling
+            block_sync_lds();
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
+
+            // let us print c
+            if(threadIdx.x == 0 && blockIdx.x == 0)
+            {
+                auto& tbuf = c_block_tile.get_thread_buffer();
+                printf("c_block_tile thread buffer size: %d\n", tbuf.size());
+                for(int i = 0; i < tbuf.size(); ++i)
+                {
+                    auto v = type_convert<float>(tbuf.get(i));
+                    printf("c_block_tile[%d] = %f\n", i, v);
+                }
+            }
 
             return c_block_tile;
         }
