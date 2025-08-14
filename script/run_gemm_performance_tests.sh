@@ -39,3 +39,9 @@ export onnx_log="perf_onnx_gemm_$arch.log"
 print_log_header $onnx_log $env_type $branch $host_name
 ./profile_onnx_gemm.sh gemm 0 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
 ./profile_onnx_gemm.sh gemm 1 0 $verify 1 0 1 2>&1 | tee -a $onnx_log
+
+#run gemm_universal tests
+export gemm_universal_log="perf_gemm_universal.log"
+print_log_header $gemm_universal_log $env_type $branch $host_name
+./profile_splitK_gemm.sh gemm_universal 1 0 $verify 1 0 1 1 2>&1 | tee -a $gemm_universal_log
+./profile_splitK_gemm.sh gemm_universal 1 1 $verify 1 0 1 1 2>&1 | tee -a $gemm_universal_log
