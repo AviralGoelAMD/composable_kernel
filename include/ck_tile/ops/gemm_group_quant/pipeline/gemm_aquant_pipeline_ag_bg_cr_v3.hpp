@@ -754,56 +754,56 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             // Tail handling
             block_sync_lds();
 
-            if(threadIdx.x == 0 && blockIdx.x == 0)
-            {
-                // Load the data into a distributed tensor
-                auto distributed_tensor = a_lds_gemm_window.load();
+            // if(threadIdx.x == 0 && blockIdx.x == 0)
+            // {
+            //     // Load the data into a distributed tensor
+            //     auto distributed_tensor = a_lds_gemm_window.load();
 
-                printf("A Copy LDS Window Data:\n");
-                auto thread_buffer = distributed_tensor.get_thread_buffer();
+            //     printf("A Copy LDS Window Data:\n");
+            //     auto thread_buffer = distributed_tensor.get_thread_buffer();
 
-                // Print all elements in the thread buffer
-                for(index_t i = 0; i < thread_buffer.size(); ++i)
-                {
-                    auto value = thread_buffer.get(i);
-                    if constexpr(std::is_same_v<decltype(value), fp8_t>)
-                    {
-                        // Convert fp8_t to float
-                        auto float_value = type_convert<float>(value);
-                        printf("  [%d] = %f\n", i, float_value);
-                    }
-                }
+            //     // Print all elements in the thread buffer
+            //     for(index_t i = 0; i < thread_buffer.size(); ++i)
+            //     {
+            //         auto value = thread_buffer.get(i);
+            //         if constexpr(std::is_same_v<decltype(value), fp8_t>)
+            //         {
+            //             // Convert fp8_t to float
+            //             auto float_value = type_convert<float>(value);
+            //             printf("  [%d] = %f\n", i, float_value);
+            //         }
+            //     }
 
-                auto distributed_tensor_b = b_lds_gemm_window.load();
-                auto b_thread_buffer      = distributed_tensor_b.get_thread_buffer();
+            //     auto distributed_tensor_b = b_lds_gemm_window.load();
+            //     auto b_thread_buffer      = distributed_tensor_b.get_thread_buffer();
 
-                printf("B Copy LDS Window Data:\n");
-                for(index_t i = 0; i < b_thread_buffer.size(); ++i)
-                {
-                    auto value = b_thread_buffer.get(i);
-                    if constexpr(std::is_same_v<decltype(value), fp8_t>)
-                    {
-                        // Convert fp8_t to float
-                        auto float_value = type_convert<float>(value);
-                        printf("  [%d] = %f\n", i, float_value);
-                    }
-                }
+            //     printf("B Copy LDS Window Data:\n");
+            //     for(index_t i = 0; i < b_thread_buffer.size(); ++i)
+            //     {
+            //         auto value = b_thread_buffer.get(i);
+            //         if constexpr(std::is_same_v<decltype(value), fp8_t>)
+            //         {
+            //             // Convert fp8_t to float
+            //             auto float_value = type_convert<float>(value);
+            //             printf("  [%d] = %f\n", i, float_value);
+            //         }
+            //     }
 
-                auto distributed_tensor_aq = aq_copy_dram_window.load();
-                auto aq_thread_buffer      = distributed_tensor_aq.get_thread_buffer();
+            //     auto distributed_tensor_aq = aq_copy_dram_window.load();
+            //     auto aq_thread_buffer      = distributed_tensor_aq.get_thread_buffer();
 
-                printf("AQ Copy DRAM Window Data:\n");
-                for(index_t i = 0; i < aq_thread_buffer.size(); ++i)
-                {
-                    auto value = aq_thread_buffer.get(i);
-                    if constexpr(std::is_same_v<decltype(value), fp32_t>)
-                    {
-                        // Convert fp8_t to float
-                        auto float_value = type_convert<float>(value);
-                        printf("  [%d] = %f\n", i, float_value);
-                    }
-                }
-            }
+            //     printf("AQ Copy DRAM Window Data:\n");
+            //     for(index_t i = 0; i < aq_thread_buffer.size(); ++i)
+            //     {
+            //         auto value = aq_thread_buffer.get(i);
+            //         if constexpr(std::is_same_v<decltype(value), fp32_t>)
+            //         {
+            //             // Convert fp8_t to float
+            //             auto float_value = type_convert<float>(value);
+            //             printf("  [%d] = %f\n", i, float_value);
+            //         }
+            //     }
+            // }
 
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
