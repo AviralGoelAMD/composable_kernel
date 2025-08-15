@@ -85,7 +85,7 @@ struct TileCopy
                                         tuple<sequence<0, 1>, sequence<1, 2>>, 
                                         tuple<sequence<0, 0>, sequence<2, 0>>, 
                                         sequence<1, 2>, 
-                                        sequence<2, 1>>{};
+                                        sequence<1, 1>>{};
 
         return make_static_tile_distribution(outer_encoding);
     }
@@ -118,7 +118,7 @@ struct TileCopy
             dram_reg_tile dram_tile;
 
             // Add 1 to the input matrix. 
-            tile_elementwise_inout([](auto& c) { c = 1; }, dram_tile);
+            tile_elementwise_inout([](auto& c) { c =  ck_tile::type_convert<XDataType>(1.0f); }, dram_tile);
 
             // store from registers to DRAM
             update_tile(y_block_window, dram_tile);

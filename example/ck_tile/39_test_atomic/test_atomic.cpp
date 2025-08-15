@@ -102,6 +102,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                        m,
                                        n));
 
+    y_buf.SetZero();
+
+    launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
+              ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+                  Kernel{}, kGridSize, kBlockSize, 0,
+                  static_cast<YDataType*>(y_buf.GetDeviceBuffer()), m, n));
+
     std::size_t num_btype = sizeof(XDataType) * m * n + sizeof(YDataType) * m;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
