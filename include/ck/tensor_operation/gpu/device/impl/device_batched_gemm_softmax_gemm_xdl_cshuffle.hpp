@@ -635,7 +635,31 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
             return ave_time;
         }
 
-        INVOKER_RUN_IMPL
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(MXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                if constexpr(MXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+        }
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -775,7 +799,7 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         }
         else
         {
-            if constexpr(NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
+            if constexpr(MXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,

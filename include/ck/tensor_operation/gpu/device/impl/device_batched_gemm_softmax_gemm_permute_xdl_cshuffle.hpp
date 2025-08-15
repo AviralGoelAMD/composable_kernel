@@ -745,7 +745,31 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             return ave_time;
         }
 
-        INVOKER_RUN_IMPL
+        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        {
+            if(get_warp_size() == 64)
+            {
+                if constexpr(MXdlPerWave64 > 0)
+                {
+                    return RunImp<GridwiseGemm64>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+            else
+            {
+                if constexpr(MXdlPerWave32 > 0)
+                {
+                    return RunImp<GridwiseGemm32>(arg, stream_config);
+                }
+                else
+                {
+                    return 0;
+                }
+            }
+        }
 
         // polymorphic
         float Run(const BaseArgument* p_arg,

@@ -687,7 +687,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             }
             else
             {
-                if constexpr(Gemm0MXdlPerWave64 > 0)
+                if constexpr(Gemm0MXdlPerWave32 > 0)
                 {
                     if(GridwiseGemm32::CheckValidity(a0_grid_desc_m_k_,
                                                      b0_grid_desc_n_k_,

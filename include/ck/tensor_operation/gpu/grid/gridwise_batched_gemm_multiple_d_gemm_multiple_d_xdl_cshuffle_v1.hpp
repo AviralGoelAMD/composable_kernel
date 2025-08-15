@@ -107,8 +107,12 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     static constexpr auto A0K0PerBlock = Number<Gemm0KPerBlock / A0K1Value>{};
     static constexpr auto B0K0PerBlock = Number<Gemm0KPerBlock / B0K1Value>{};
 
-    static constexpr auto Gemm0MWaves = Gemm0MPerBlock / (Gemm0MPerXdl * Gemm0MXdlPerWave);
-    static constexpr auto Gemm0NWaves = Gemm0NPerBlock / (Gemm0NPerXdl * Gemm0NXdlPerWave);
+    static constexpr auto Gemm0MWaves = Gemm0MPerXdl * Gemm0MXdlPerWave == 0
+                                            ? 1
+                                            : Gemm0MPerBlock / (Gemm0MPerXdl * Gemm0MXdlPerWave);
+    static constexpr auto Gemm0NWaves = Gemm0NPerXdl * Gemm0NXdlPerWave == 0
+                                            ? 1
+                                            : Gemm0NPerBlock / (Gemm0NPerXdl * Gemm0NXdlPerWave);
     static constexpr auto WaveSize    = BlockSize / (Gemm0MWaves * Gemm0NWaves);
     // Gemm1
     static constexpr auto B1K1         = Number<B1K1Value>{};
