@@ -237,34 +237,19 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     using DeviceOp = DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle;
 
     GET_NXDL_PER_WAVE2_IMPL;
-    static constexpr auto Gemm0NXdlPerWave64 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0MPerBlock,
+    static constexpr auto Gemm0MXdlPerWave64 = GetNXdlPerWave2<BlockSize,
                                                                Gemm0NPerBlock,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MXdlPerWave,
-                                                               true>();
-    static constexpr auto Gemm0NXdlPerWave32 = GetNXdlPerWave2<BlockSize,
                                                                Gemm0MPerBlock,
+                                                               Gemm0NPerXdl,
+                                                               Gemm0MPerXdl,
+                                                               Gemm0NXdlPerWave,
+                                                               true>();
+    static constexpr auto Gemm0MXdlPerWave32 = GetNXdlPerWave2<BlockSize,
                                                                Gemm0NPerBlock,
-                                                               Gemm0MPerXdl,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MXdlPerWave,
-                                                               false>();
-
-    static constexpr auto Gemm1NXdlPerWave64 = GetNXdlPerWave2<BlockSize,
                                                                Gemm0MPerBlock,
-                                                               Gemm1NPerBlock,
-                                                               Gemm0MPerXdl,
                                                                Gemm0NPerXdl,
-                                                               Gemm0MXdlPerWave,
-                                                               true>();
-    static constexpr auto Gemm1NXdlPerWave32 = GetNXdlPerWave2<BlockSize,
-                                                               Gemm0MPerBlock,
-                                                               Gemm1NPerBlock,
                                                                Gemm0MPerXdl,
-                                                               Gemm0NPerXdl,
-                                                               Gemm0MXdlPerWave,
+                                                               Gemm0NXdlPerWave,
                                                                false>();
 
     static constexpr index_t NumD0Tensor = D0sDataType::Size();
@@ -479,7 +464,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
     using E1GridDesc_M_N  = decltype(MakeE1GridDescriptor_M_N<E1Layout>(1, 1, 1));
 
     // GridwiseGemm
-    template <index_t Gemm0NXdlPerWave_, index_t Gemm1NXdlPerWave_>
+    template <index_t Gemm0MXdlPerWave_>
     using GridwiseGemmBase = GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle<
         A0DataType, // TODO: distinguish A/B datatype
         Acc0DataType,
@@ -512,9 +497,9 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         B1K1,
         Gemm0MPerXdl,
         Gemm0NPerXdl,
-        Gemm0MXdlPerWave,
-        Gemm0NXdlPerWave_,
-        Gemm1NXdlPerWave_,
+        Gemm0MXdlPerWave_,
+        Gemm0NXdlPerWave,
+        Gemm1NXdlPerWave,
         A0BlockTransferThreadClusterLengths_AK0_M_AK1,
         A0BlockTransferThreadClusterArrangeOrder,
         A0BlockTransferSrcAccessOrder,
@@ -546,9 +531,8 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         CDE1ShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDE1ShuffleBlockTransferScalarPerVector_NPerBlock,
         LoopSched>;
-    using GridwiseGemm64 =
-        GridwiseGemmBase<math::max(Gemm0NXdlPerWave64, 1), math::max(Gemm0NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<Gemm0NXdlPerWave32, Gemm1NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(Gemm0MXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<Gemm0MXdlPerWave32>;
 
     using A0GridDesc_AK0_M_AK1 =
         remove_cvref_t<decltype(GridwiseGemm64::MakeDefaultA0GridDescriptor_AK0_M_AK1(
@@ -679,7 +663,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
             if(get_warp_size() == 64)
             {
-                if constexpr((Gemm0NXdlPerWave64 > 0) && (Gemm1NXdlPerWave64 > 0))
+                if constexpr(Gemm0MXdlPerWave64 > 0)
                 {
                     if(GridwiseGemm64::CheckValidity(a0_grid_desc_m_k_,
                                                      b0_grid_desc_n_k_,
@@ -703,7 +687,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             }
             else
             {
-                if constexpr((Gemm0NXdlPerWave64 > 0) && (Gemm1NXdlPerWave64 > 0))
+                if constexpr(Gemm0MXdlPerWave64 > 0)
                 {
                     if(GridwiseGemm32::CheckValidity(a0_grid_desc_m_k_,
                                                      b0_grid_desc_n_k_,
@@ -860,7 +844,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         {
             if(get_warp_size() == 64)
             {
-                if constexpr(Gemm0NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
+                if constexpr(Gemm0MXdlPerWave64 > 0)
                 {
                     return RunImp<GridwiseGemm64>(arg, stream_config);
                 }
@@ -871,7 +855,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             }
             else
             {
-                if constexpr(Gemm0NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
+                if constexpr(Gemm0MXdlPerWave32 > 0)
                 {
                     return RunImp<GridwiseGemm32>(arg, stream_config);
                 }
@@ -937,7 +921,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
 
         if(get_warp_size() == 64)
         {
-            if constexpr(Gemm0NXdlPerWave64 > 0 && Gemm1NXdlPerWave64 > 0)
+            if constexpr(Gemm0MXdlPerWave64 > 0)
             {
                 return GridwiseGemm64::CheckValidity(arg.a0_grid_desc_m_k_,
                                                      arg.b0_grid_desc_n_k_,
@@ -952,7 +936,7 @@ struct DeviceBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         }
         else
         {
-            if constexpr(Gemm0NXdlPerWave32 > 0 && Gemm1NXdlPerWave32 > 0)
+            if constexpr(Gemm0MXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(arg.a0_grid_desc_m_k_,
                                                      arg.b0_grid_desc_n_k_,

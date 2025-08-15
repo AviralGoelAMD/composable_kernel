@@ -874,8 +874,8 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                                                   decltype(thread_slice_desc_m_n)>{};
 
         const index_t num_gemm1_k_block_outer_loop =
-            b_grid_desc_bk0_n_bk1.GetLength(I1) / NPerBlock;
-        constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm1KPerBlock;
+            b_grid_desc_bk0_n_bk1.GetLength(I1) / (NPerBlock / Gemm0NWaves);
+        constexpr index_t num_gemm1_k_block_inner_loop = NPerBlock / Gemm0NWaves / Gemm1KPerBlock;
 
         // Initialize C
         StaticBuffer<AddressSpaceEnum::Vgpr, FloatGemmAcc, acc1_thread_buf.Size(), true>
@@ -1047,6 +1047,7 @@ struct GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle
                 // main body
                 if constexpr(num_gemm1_k_block_inner_loop > 1)
                 {
+
                     static_for<0, num_gemm1_k_block_inner_loop - 1, 1>{}([&](auto i) {
                         a1_blockwise_copy.Run(acc_thread_desc_k0_m_k1,
                                               make_tuple(Number<i * A1ThreadSliceK0>{}, I0, I0),

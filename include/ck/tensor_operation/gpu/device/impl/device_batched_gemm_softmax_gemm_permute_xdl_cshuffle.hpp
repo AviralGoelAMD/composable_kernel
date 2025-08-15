@@ -224,24 +224,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
                                                  MaskingSpec>
 {
     GET_NXDL_PER_WAVE2_IMPL
-    static constexpr auto NXdlPerWave64 =
-        GetNXdlPerWave2<BlockSize, MPerBlock, NPerBlock, MPerXDL, NPerXDL, MXdlPerWave, true>();
-    static constexpr auto NXdlPerWave32 =
-        GetNXdlPerWave2<BlockSize, MPerBlock, NPerBlock, MPerXDL, NPerXDL, MXdlPerWave, false>();
-    static constexpr auto Gemm1NXdlPerWave64 = GetNXdlPerWave2<BlockSize,
-                                                               MPerBlock,
-                                                               Gemm1NPerBlock,
-                                                               MPerXDL,
-                                                               NPerXDL,
-                                                               MXdlPerWave,
-                                                               true>();
-    static constexpr auto Gemm1NXdlPerWave32 = GetNXdlPerWave2<BlockSize,
-                                                               MPerBlock,
-                                                               Gemm1NPerBlock,
-                                                               MPerXDL,
-                                                               NPerXDL,
-                                                               MXdlPerWave,
-                                                               false>();
+    static constexpr auto MXdlPerWave64 =
+        GetNXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, true>();
+    static constexpr auto MXdlPerWave32 =
+        GetNXdlPerWave2<BlockSize, NPerBlock, MPerBlock, NPerXDL, MPerXDL, NXdlPerWave, false>();
 
     static_assert(NumDimG > 0 && NumDimM > 0 && NumDimN > 0 && NumDimK > 0 && NumDimO > 0,
                   "Number of dimension must be greater than 0");
@@ -402,7 +388,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
     };
 
     // GridwiseGemm
-    template <index_t NXdlPerWave_, index_t Gemm1NXdlPerWave_>
+    template <index_t MXdlPerWave_>
     using GridwiseGemmBase = GridwiseBatchedGemmMultipleDSoftmaxGemm_Xdl_CShuffle<
         ADataType, // TODO: distinguish A/B datatype
         GemmAccDataType,
@@ -432,9 +418,9 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         B1K1,
         MPerXDL,
         NPerXDL,
-        MXdlPerWave,
-        NXdlPerWave_,
-        Gemm1NXdlPerWave_,
+        MXdlPerWave_,
+        NXdlPerWave,
+        Gemm1NXdlPerWave,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -467,9 +453,8 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         Transform::matrix_padder.PadN,
         MaskingSpec == MaskingSpecialization::MaskOutUpperTriangle,
         D0sTransferSrcScalarPerVector>;
-    using GridwiseGemm64 =
-        GridwiseGemmBase<math::max(NXdlPerWave64, 1), math::max(Gemm1NXdlPerWave64, 1)>;
-    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32, Gemm1NXdlPerWave32>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(MXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<MXdlPerWave32>;
 
     // Argument
     // FIXME: constness
@@ -569,7 +554,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             });
             if(get_warp_size() == 64)
             {
-                if constexpr(NXdlPerWave64 > 0 && Gemm1NXdlPerWave64)
+                if constexpr(MXdlPerWave64 > 0)
                 {
                     if(GridwiseGemm64::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                                      b_grid_desc_bk0_n_bk1_,
@@ -591,7 +576,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
             }
             else
             {
-                if constexpr(NXdlPerWave32 > 0 && Gemm1NXdlPerWave32)
+                if constexpr(MXdlPerWave32 > 0)
                 {
                     if(GridwiseGemm32::CheckValidity(a_grid_desc_ak0_m_ak1_,
                                                      b_grid_desc_bk0_n_bk1_,
@@ -853,7 +838,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         }
         if(get_warp_size() == 64)
         {
-            if constexpr(NXdlPerWave64 > 0 && Gemm1NXdlPerWave64)
+            if constexpr(MXdlPerWave64 > 0)
             {
                 return GridwiseGemm64::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,
@@ -868,7 +853,7 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         }
         else
         {
-            if constexpr(NXdlPerWave32 > 0 && Gemm1NXdlPerWave32)
+            if constexpr(MXdlPerWave32 > 0)
             {
                 return GridwiseGemm32::CheckValidity(arg.a_grid_desc_ak0_m_ak1_,
                                                      arg.b_grid_desc_bk0_n_bk1_,

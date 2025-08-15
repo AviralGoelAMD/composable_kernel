@@ -893,7 +893,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                                          ds_grid_desc_m_n,
                                                          e_grid_desc_m_n,
                                                          block_2_etile_map) and
-                           IsSupported(MRaw, NRaw, KRaw);
+                           IsSupported(MRaw, NRaw, KRaw) and
+                           GridwiseGemm64::template IsValidCompilationParameter<>();
                 }
                 else
                 {
@@ -909,7 +910,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
                                                          ds_grid_desc_m_n,
                                                          e_grid_desc_m_n,
                                                          block_2_etile_map) and
-                           IsSupported(MRaw, NRaw, KRaw);
+                           IsSupported(MRaw, NRaw, KRaw) and
+                           GridwiseGemm32::template IsValidCompilationParameter<>();
                 }
                 else
                 {
@@ -951,9 +953,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
 #ifndef __HIPCC_RTC__
         assert(desc.IsValid());
 #endif
-        using GridwiseGemm = std::conditional_t<get_warp_size() == 64,
-                                                typename Desc::GridwiseGemm64,
-                                                typename Desc::GridwiseGemm32>;
+        using GridwiseGemm = conditional_t<get_warp_size() == 64, GridwiseGemm64, GridwiseGemm32>;
         __shared__ char p_shared_block[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         if(desc.has_main_k_block_loop)
         {
