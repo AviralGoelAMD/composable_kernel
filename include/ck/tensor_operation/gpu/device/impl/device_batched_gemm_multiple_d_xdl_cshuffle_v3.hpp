@@ -417,7 +417,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             &max_occupancy,
                             kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
                                 GridwiseGemm32,
-                                Argument,
+                                ArgumentBase<GridwiseGemm32>,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy>,
@@ -430,7 +430,7 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                             &max_occupancy,
                             kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
                                 GridwiseGemm32,
-                                Argument,
+                                ArgumentBase<GridwiseGemm32>,
                                 true,
                                 InMemoryDataOperationEnum::AtomicAdd,
                                 minimum_occupancy>,

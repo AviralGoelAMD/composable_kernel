@@ -144,7 +144,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         false,
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        math::min(CShuffleNXdlPerWavePerShuffle,NXdlPerWave_),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,

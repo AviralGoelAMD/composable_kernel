@@ -38,7 +38,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                               const BElementwiseOperation b_element_op,
                                               const CElementwiseOperation c_element_op)
 {
-#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+#if defined(__gfx9__)
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
     {
         constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();

@@ -682,6 +682,8 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM)
         {
@@ -717,7 +719,7 @@ struct GridwiseGemmMultiD_blockscale_xdl_cshuffle_v3_b_preshuffle
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto KThreadRead      = WaveSize / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
             constexpr auto kfold = (AK1Number * M0 * sizeof(LDSTypeA) > 128)
