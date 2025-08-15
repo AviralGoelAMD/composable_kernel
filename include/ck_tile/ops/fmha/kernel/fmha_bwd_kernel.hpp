@@ -75,7 +75,7 @@ struct FmhaBwdDQDKDVKernel
     static constexpr bool kUseTrLoad       = FmhaPipeline::kUseTrLoad;
     static constexpr index_t kMaxSeqLenQ   = FmhaPipeline::BlockFmhaShape::kMaxSeqLenQ;
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
-    static_assert(!kUseQrQtrDorPipeline || kIsAtomic32);
+    static_assert(!kUseTrLoad || kIsAtomic32);
     static_assert(!kIsDeterministic || kIsAtomic32);
 #if defined(__gfx950__)
     static constexpr bool kIsAvialable = true;
@@ -906,7 +906,6 @@ struct FmhaBwdDQDKDVKernel
 
         auto dq_dram_window = [&, i_tile_n_ = i_tile_n, i_nhead_ = i_nhead]() {
             constexpr bool kUseKSplit   = !kUseQrQtrDorPipeline && kIsDeterministic;
-            constexpr bool kUseAtomic16 = !(kUseQrQtrDorPipeline || kIsAtomic32);
 
             using DType = std::
                 conditional_t<kUseQrQtrDorPipeline || !kIsAtomic32, QGradDataType, AccDataType>;
@@ -925,7 +924,7 @@ struct FmhaBwdDQDKDVKernel
                 memory_operation_enum::set, memory_operation_enum::atomic_add);
 
             auto dq_acc_dram = [&]() {
-                if(!kUseAtomic16)
+                if constexpr(kIsAtomic32)
                 {
 
                     const auto dq_acc_dram_naive =
