@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn.hpp"
 #include "ck/host_utility/device_prop.hpp"
@@ -18,7 +18,7 @@ void add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_kpadding_instance
         instances,
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_instances<Intrawave, GemmKPadding>{});
 
-    if(ck::get_device_name() != "gfx950")
+    if(ck::get_device_name() != "gfx950" && !is_gfx11_supported() && !is_gfx12_supported())
     {
         add_device_operation_instances(
             instances,
