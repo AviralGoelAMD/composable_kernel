@@ -349,3 +349,4 @@ set_source_files_properties(device_gemm_xdl_universal_f8_f8_bf16/device_gemm_xdl
 
 
 add_instance_library2(device_gemm_universal_instance ${GEMM_UNIVERSAL_INSTANCES})
+target_compile_definitions(device_gemm_universal_instance PRIVATE CK_ENABLE_DYNAMIC_WARP_SIZE=1)
