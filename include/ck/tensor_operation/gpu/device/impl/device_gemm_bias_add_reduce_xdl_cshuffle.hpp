@@ -731,6 +731,10 @@ struct DeviceGemmBiasAddReduce_Xdl_CShuffle : public DeviceGemmReduce<1, ReduceO
         {
             return false;
         }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)

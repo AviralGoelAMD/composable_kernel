@@ -773,7 +773,10 @@ struct DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];

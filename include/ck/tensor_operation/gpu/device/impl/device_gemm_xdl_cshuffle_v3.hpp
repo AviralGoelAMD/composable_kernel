@@ -859,7 +859,10 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(arg.KBatch > 1)
         {
             if(is_gfx11_supported())
@@ -873,14 +876,6 @@ struct DeviceGemm_Xdl_CShuffleV3 : public DeviceGemmV2<ALayout,
             }
 
             if(sizeof(CDataType) == 1)
-            {
-                return false;
-            }
-        }
-
-        if(is_gfx11_supported() || is_gfx12_supported())
-        {
-            if(MPerXDL != 16 || NPerXDL != 16)
             {
                 return false;
             }

@@ -700,7 +700,10 @@ struct DeviceGroupedGemmSoftmaxGemmPermute_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // TODO ANT: Check if tensor specialization & strides mismatch
 
         bool all_has_main_k_block_loop  = true;

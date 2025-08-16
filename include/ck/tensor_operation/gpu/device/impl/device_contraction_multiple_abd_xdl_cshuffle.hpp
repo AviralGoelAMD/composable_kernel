@@ -692,7 +692,10 @@ struct DeviceContractionMultipleABD_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // check vector load/store
         {
             bool valid_as_access = true;

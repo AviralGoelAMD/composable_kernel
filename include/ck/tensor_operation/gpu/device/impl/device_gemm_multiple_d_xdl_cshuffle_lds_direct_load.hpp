@@ -214,7 +214,10 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(!ck::is_lds_direct_load_supported())
         {
             return false;

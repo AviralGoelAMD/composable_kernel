@@ -1400,6 +1400,10 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return false;
         }
 
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)

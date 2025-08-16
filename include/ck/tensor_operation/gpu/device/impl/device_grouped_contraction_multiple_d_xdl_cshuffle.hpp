@@ -746,7 +746,10 @@ struct DeviceGroupedContractionMultipleD_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         for(std::size_t i = 0; i < arg.group_count_; i++)
         {
             const auto a_grid_desc_m_k_ = arg.contraction_multi_d_device_args_[i].a_grid_desc_m_k_;

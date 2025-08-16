@@ -973,6 +973,10 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
         {
             return false;
         }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if constexpr(NDimSpatial == 1)
         {
             if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())

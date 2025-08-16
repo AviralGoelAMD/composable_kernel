@@ -992,6 +992,10 @@ struct DeviceSplitKContractionMultipleD_Xdl_CShuffle
         {
             return false;
         }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         bool valid = false;
         if(get_warp_size() == 64)
         {

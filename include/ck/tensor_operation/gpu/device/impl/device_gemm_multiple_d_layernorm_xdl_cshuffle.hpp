@@ -900,7 +900,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // check vector load/store
         {
             using Row = ck::tensor_layout::gemm::RowMajor;

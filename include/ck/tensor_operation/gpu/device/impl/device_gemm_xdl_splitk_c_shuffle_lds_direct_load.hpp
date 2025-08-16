@@ -306,6 +306,14 @@ struct DeviceGemmXdlSplitKCShuffle_LdsDirectLoad : public DeviceGemmSplitK<ALayo
         {
             return false;
         }
+        if(!ck::is_lds_direct_load_supported())
+        {
+            return false;
+        }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
 
         if(get_warp_size() == 64)
         {

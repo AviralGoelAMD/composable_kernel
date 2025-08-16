@@ -458,6 +458,10 @@ struct DeviceGemm_Xdl_WaveletModel_CShuffle : public DeviceGemm<ALayout,
         {
             return false;
         }
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)

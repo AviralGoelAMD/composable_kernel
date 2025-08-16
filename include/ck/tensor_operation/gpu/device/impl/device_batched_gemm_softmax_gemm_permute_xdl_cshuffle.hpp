@@ -796,7 +796,10 @@ struct DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         // TODO ANT: Check if tensor specialization & strides mismatch
 
         // Check if C permute dimension matches GEMM + GEMM shape

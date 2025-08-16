@@ -630,7 +630,10 @@ struct DeviceContractionMultipleD_Xdl_CShuffle
         {
             return false;
         }
-
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        {
+            return false;
+        }
         if(!ck::is_lds_direct_load_supported() && std::is_same<ADataType, double>::value)
         {
             return false;
