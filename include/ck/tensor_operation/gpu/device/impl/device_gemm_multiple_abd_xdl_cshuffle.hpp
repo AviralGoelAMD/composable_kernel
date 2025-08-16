@@ -601,7 +601,9 @@ struct DeviceGemmMultipleABD_Xdl_CShuffle : public DeviceGemmMultipleABD<AsLayou
         {
             return false;
         }
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        using A0DataType = remove_cvref_t<tuple_element_t<0, AsDataType>>;
+        using B0DataType = remove_cvref_t<tuple_element_t<0, BsDataType>>;
+        if(!ck::is_xdl_wmma_supported<A0DataType, B0DataType, MPerXDL, NPerXDL>())
         {
             return false;
         }

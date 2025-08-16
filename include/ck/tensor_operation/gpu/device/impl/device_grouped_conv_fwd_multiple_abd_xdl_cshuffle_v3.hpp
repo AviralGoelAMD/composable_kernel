@@ -1400,7 +1400,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             return false;
         }
 
-        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
+        if(!ck::is_xdl_wmma_supported<AComputeDataType, BComputeDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
