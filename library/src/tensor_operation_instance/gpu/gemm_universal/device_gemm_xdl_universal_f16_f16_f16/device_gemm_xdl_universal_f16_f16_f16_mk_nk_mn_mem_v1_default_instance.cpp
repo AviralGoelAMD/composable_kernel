@@ -18,7 +18,7 @@ void add_device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_v1_default_instances
         instances,
         device_gemm_xdl_universal_f16_f16_f16_mk_nk_mn_mem_instances<Intrawave, GemmDefault>{});
 
-    if(ck::get_device_name() != "gfx950" && !is_gfx11_supported() && !is_gfx12_supported())
+    if(ck::get_device_name() != "gfx950")
     {
         add_device_operation_instances(
             instances,
