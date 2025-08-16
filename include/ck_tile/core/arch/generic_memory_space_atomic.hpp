@@ -304,6 +304,21 @@ CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
     } while(cur_v.u64 != old_v);
 }
 
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t*, const fp16x2_t&)
+{
+}
+
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x4_t>(fp16x4_t*, const fp16x4_t&)
+{
+}
+
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x8_t>(fp16x8_t*, fp16x8_t const&)
+{
+}
+
 template <typename T, index_t N>
 CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
@@ -312,6 +327,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
+                      (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
                       (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
                   "The granularity of the thread buffer is unsupported on the hardware!");
