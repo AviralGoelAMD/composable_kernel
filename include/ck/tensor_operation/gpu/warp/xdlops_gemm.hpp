@@ -1003,6 +1003,7 @@ struct mfma_type<MfmaInstr::wmma_i32_16x16x16_iu8> : public mfma_type_gfx11_base
 template <>
 struct mfma_type<MfmaInstr::wmma_unsupport_16x16x16_gfx11> : public mfma_type_gfx11_base
 {
+    static constexpr index_t k_per_blk = 2;
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA&, const FloatB&, FloatC&) const
     {
@@ -2034,7 +2035,6 @@ struct XdlopsGemm
                                               is_scale_mfma>{};
 
     static constexpr auto mfma_instr = mfma.selected_mfma;
-    // Debug<decltype(mfma_instr)> xx1;
 
     static constexpr auto KPerXdlops  = mfma.GetKPerXdlops();
     static constexpr auto K1PerXdlops = mfma.GetK1PerXdlops();

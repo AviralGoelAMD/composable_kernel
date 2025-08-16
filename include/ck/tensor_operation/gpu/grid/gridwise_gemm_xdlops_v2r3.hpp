@@ -150,7 +150,17 @@ struct GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1 = Number<K1Value>{};
+    static constexpr bool is_single_rate_mfma =
+        (((is_same<FloatAB, half_t>::value || is_same<FloatAB, bhalf_t>::value) && K1Value <= 4) ||
+         (is_same<FloatAB, int8_t>::value && K1Value <= 8) ||
+         ((is_same<FloatAB, f8_t>::value || is_same<FloatAB, bf8_t>::value) && K1Value < 32))
+            ? true
+            : false;
+    static constexpr auto is_scale_mfma = false;
+    static constexpr auto K1            = Number<math::max(
+        K1Value,
+        MfmaSelector<FloatAB, MPerXdl, NPerXdl, FloatAB, is_single_rate_mfma, is_scale_mfma>::
+            selected_mfma.k_per_blk)>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
