@@ -129,7 +129,8 @@ int run_gemm_example_with_layouts(int argc,
 
     ck_tile::index_t AQK = K / QuantGroupSize;
 
-    std::cout << "M:" << M << " N:" << N << " K:" << K << " AQK:" << AQK << std::endl;
+    std::cout << "M:" << M << " N:" << N << " K:" << K << " AQK(K/QuantGroupSize):" << K << "/"
+              << QuantGroupSize << "=" << AQK << std::endl;
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
     ck_tile::index_t stride_AQ = arg_parser.get_int("stride_q");
@@ -164,6 +165,8 @@ int run_gemm_example_with_layouts(int argc,
     std::cout << __func__ << " c_m_n_dev_result:" << M << "x" << N << " stride_C:" << stride_C
               << " is_row_major:" << is_row_major(CLayout{}) << std::endl;
 
+    std::cout << std::endl;
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
@@ -189,18 +192,20 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        std::cout << __func__ << " A matrix is filled with 3" << std::endl;
-        std::cout << __func__ << " AQ matrix is filled with 2" << std::endl;
-        std::cout << __func__ << " B matrix is filled with 4" << std::endl;
-        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(1.1f)}(a_m_k);
-        ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.1f)}(aq_m_aqk);
-        // float init_v = 0.0f;
-        // for(auto&& aq : aq_m_aqk)
-        // {
-        //     aq = ck_tile::type_convert<AQDataType>(init_v);
-        //     init_v += 0.1f;
-        // }
-        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(1.1f)}(b_k_n);
+        std::cout << __func__ << " A matrix is filled with 2" << std::endl;
+        std::cout << __func__
+                  << " AQ matrix is filled with 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0"
+                  << std::endl;
+        std::cout << __func__ << " B matrix is filled with 2" << std::endl;
+        ck_tile::FillConstant<ADataType>{ck_tile::type_convert<ADataType>(2.0f)}(a_m_k);
+        ck_tile::FillConstant<AQDataType>{ck_tile::type_convert<AQDataType>(1.0f)}(aq_m_aqk);
+        float init_v = 0.0f;
+        for(auto&& aq : aq_m_aqk)
+        {
+            aq = ck_tile::type_convert<AQDataType>(init_v);
+            init_v += 0.1f;
+        }
+        ck_tile::FillConstant<BDataType>{ck_tile::type_convert<BDataType>(2.0f)}(b_k_n);
     }
     else
     {
@@ -210,10 +215,18 @@ int run_gemm_example_with_layouts(int argc,
     }
     // std::cout << "A matrix: " << std::endl;
     // std::cout << a_m_k << std::endl;
-    //  std::cout << "AQ matrix: " << std::endl;
-    //  std::cout << aq_m_aqk << std::endl;
-    //  std::cout << "B matrix: " << std::endl;
-    //  std::cout << b_k_n << std::endl;
+    // std::cout << "AQ matrix: " << std::endl;
+    // std::cout << aq_m_aqk << std::endl;
+    // std::cout << "B matrix: " << std::endl;
+    // std::cout << b_k_n << std::endl;
+
+    // print aq_m_aqk
+    std::cout << "AQ matrix: " << std::endl;
+    for(auto&& aq : aq_m_aqk)
+    {
+        std::cout << aq << ", " << "\t";
+    }
+
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem aq_m_aqk_dev_buf(aq_m_aqk.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());

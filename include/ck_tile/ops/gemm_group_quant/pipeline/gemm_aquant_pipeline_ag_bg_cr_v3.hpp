@@ -363,7 +363,9 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             // LDS to VGPRs for gemm
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
 
+            // hard barrier
             __builtin_amdgcn_sched_barrier(0);
+            // you shall not pass this barrier until all the data is loaded into LDS
 
             if constexpr(HasHotLoop)
             {
@@ -414,17 +416,18 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                     i += 1;
                 } while(i < (num_loop - 1));
             }
-            // tail
+            // one single block is left
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
                 block_gemm(
                     c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
             }
-            else
+            else // two blocks are left
             {
                 Base::GlobalPrefetch(aq_block_tile[(currIdx + 1) % 2],
                                      aq_copy_dram_window,
                                      aq_dram_tile_window_step);
+                // block 1
                 block_gemm(
                     c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
@@ -454,6 +457,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                     Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
                 }
                 block_sync_lds();
+                // block 2
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_gemm(
                     c_block_tile, aq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
@@ -630,7 +634,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
 
-            tile_elementwise_inout([](auto& c) { c = 4; }, c_block_tile);
+            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
             // LDS prefill
             if constexpr(is_a_col_major)
@@ -806,6 +810,13 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             block_sync_lds();
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
+
+            Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
+            Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
+            block_sync_lds();
+            // block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            block_gemm(
+                c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window, b_lds_gemm_window);
 
             // let us print c
             if(threadIdx.x == 0 && blockIdx.x == 0)

@@ -493,40 +493,40 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmQuantBase<Problem_>
 
             LocalPrefetch(a_block_window, b_block_window);
 
-            if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
-            {
-                auto& a_tb  = a_warp_tile_.get_thread_buffer();
-                auto& b_tb  = b_warp_tile_.get_thread_buffer();
-                auto& aq_tb = aq_block_tensor.get_thread_buffer();
+            // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
+            // {
+            //     auto& a_tb  = a_warp_tile_.get_thread_buffer();
+            //     auto& b_tb  = b_warp_tile_.get_thread_buffer();
+            //     auto& aq_tb = aq_block_tensor.get_thread_buffer();
 
-                constexpr index_t a_sz  = decltype(a_warp_tile_)::get_thread_buffer_size();
-                constexpr index_t b_sz  = decltype(b_warp_tile_)::get_thread_buffer_size();
-                constexpr index_t aq_sz = AQBlockTensor::get_thread_buffer_size();
+            //     constexpr index_t a_sz  = decltype(a_warp_tile_)::get_thread_buffer_size();
+            //     constexpr index_t b_sz  = decltype(b_warp_tile_)::get_thread_buffer_size();
+            //     constexpr index_t aq_sz = AQBlockTensor::get_thread_buffer_size();
 
-                printf("AFTER PREFETCH A warp tile thread buffer size=%d, first up to 8:\n",
-                       int(a_sz));
-                for(int j = 0; j < (a_sz < 8 ? a_sz : 8); ++j)
-                {
-                    float v = type_convert<float>(a_tb.get(j));
-                    printf("  A[%d]=%f\n", j, v);
-                }
+            //     printf("AFTER PREFETCH A warp tile thread buffer size=%d, first up to 8:\n",
+            //            int(a_sz));
+            //     for(int j = 0; j < (a_sz < 8 ? a_sz : 8); ++j)
+            //     {
+            //         float v = type_convert<float>(a_tb.get(j));
+            //         printf("  A[%d]=%f\n", j, v);
+            //     }
 
-                printf("AFTER PREFETCH B warp tile thread buffer size=%d, first up to 8:\n",
-                       int(b_sz));
-                for(int j = 0; j < (b_sz < 8 ? b_sz : 8); ++j)
-                {
-                    float v = type_convert<float>(b_tb.get(j));
-                    printf("  B[%d]=%f\n", j, v);
-                }
+            //     printf("AFTER PREFETCH B warp tile thread buffer size=%d, first up to 8:\n",
+            //            int(b_sz));
+            //     for(int j = 0; j < (b_sz < 8 ? b_sz : 8); ++j)
+            //     {
+            //         float v = type_convert<float>(b_tb.get(j));
+            //         printf("  B[%d]=%f\n", j, v);
+            //     }
 
-                printf("AFTER PREFETCH AQ block tensor thread buffer size=%d, first up to 8:\n",
-                       int(aq_sz));
-                for(int j = 0; j < (aq_sz < 8 ? aq_sz : 8); ++j)
-                {
-                    float v = Base::cvt_scale_to_fp32(aq_tb.get(j));
-                    printf("  AQ[%d]=%f\n", j, v);
-                }
-            }
+            //     printf("AFTER PREFETCH AQ block tensor thread buffer size=%d, first up to 8:\n",
+            //            int(aq_sz));
+            //     for(int j = 0; j < (aq_sz < 8 ? aq_sz : 8); ++j)
+            //     {
+            //         float v = Base::cvt_scale_to_fp32(aq_tb.get(j));
+            //         printf("  AQ[%d]=%f\n", j, v);
+            //     }
+            // }
 
             // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
             // {
