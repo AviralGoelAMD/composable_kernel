@@ -1107,7 +1107,7 @@ struct mfma_type<MfmaInstr::wmma_f32_16x16x16_bf8bf8_gfx12> : public mfma_type_g
 template <>
 struct mfma_type<MfmaInstr::wmma_unsupport_16x16_gfx12> : public mfma_type_gfx12_base
 {
-    static constexpr index_t k_per_blk           = 2;
+    static constexpr index_t k_per_blk = 2;
     template <index_t MPerWmma, index_t NPerWmma, class FloatA, class FloatB, class FloatC>
     __device__ void run(const FloatA&, const FloatB&, FloatC&) const
     {
