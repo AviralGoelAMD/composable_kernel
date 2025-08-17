@@ -202,10 +202,21 @@ struct DeviceGemmXdlSplitKCShuffle : public DeviceGemmSplitK<ALayout,
                 Print(arg);
             }
 
-            const typename GridwiseGemm64::Argument* karg64 = &arg;
-            const auto& karg  = reinterpret_cast<const typename GridwiseGemm::Argument&>(karg64);
+            typename GridwiseGemm::Argument karg(arg.p_a_grid,
+                                                 arg.p_b_grid,
+                                                 arg.p_c_grid,
+                                                 arg.M,
+                                                 arg.N,
+                                                 arg.K,
+                                                 arg.StrideA,
+                                                 arg.StrideB,
+                                                 arg.StrideC,
+                                                 arg.MPadded,
+                                                 arg.NPadded,
+                                                 arg.KPadded,
+                                                 arg.K0Padded,
+                                                 arg.k_batch);
             const auto kbatch = karg.k_batch;
-
             if(!GridwiseGemm::CheckValidity(karg))
             {
                 throw std::runtime_error(
