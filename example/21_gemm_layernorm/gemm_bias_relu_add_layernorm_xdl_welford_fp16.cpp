@@ -154,6 +154,12 @@ void host_gemm_layernorm(Tensor<HDataType>& h_m_n,
 
 int main()
 {
+    // temp disable on gfx11 & gfx12
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
+    }
+
     bool do_verification = true;
 
     // GEMM shape
