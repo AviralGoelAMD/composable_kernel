@@ -896,9 +896,20 @@ struct DeviceGroupedConvFwdMultipleDMultipleR_Xdl_CShuffle
                 return false;
             }
         }
+        else if(ck::is_gfx12_supported() || ck::is_gfx11_supported())
+        {
+            if constexpr(!(is_same_v<AccDataType, float> || is_same_v<AccDataType, int32_t>))
+            {
+                return false;
+            }
+            if(!is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, MPerXDL>())
+            {
+                return false;
+            }
+        }
         else
         {
-            return false;
+            // return false;
         }
 
         // check ConvolutionForwardSpecialization
