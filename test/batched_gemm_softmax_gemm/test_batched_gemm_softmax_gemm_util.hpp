@@ -162,7 +162,7 @@ struct DeviceInstanceWrapper_TNTT_FP16_M128_N128_K32_O128
             1,              // CShuffleMXdlPerWavePerShuffle
             2,              // CShuffleNXdlPerWavePerShuffle
             S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-            8,              // CShuffleBlockTransferScalarPerVector_NPerBlock
+            4,              // CShuffleBlockTransferScalarPerVector_NPerBlock
             false>;
 
     bool IsSupported(int M, int N, int K, int O)

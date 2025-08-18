@@ -47,7 +47,7 @@ using DeviceConvFwdInstance =
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 16, 1, 16>,
+        S<1, 32, 1, 8>,
         4>;
 
 template <ck::index_t NDimSpatial>

@@ -74,7 +74,7 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 32, 1, 8>,
-        8,
+        4,
         AComputeType,
         BComputeType>;
 

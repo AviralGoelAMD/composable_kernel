@@ -108,7 +108,7 @@ using DeviceOpInstance =
                                                                    1,
                                                                    1,
                                                                    S<1, 32, 1, 8>,
-                                                                   8>;
+                                                                   4>;
 
 int main(int argc, char* argv[])
 {

@@ -2,15 +2,17 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
 #ifndef __HIPCC_RTC__
 #include <iostream>
 #include <sstream>
+#endif
+
+#include "ck/utility/common_header.hpp"
+#ifndef __HIPCC_RTC__
 #include "ck/host_utility/device_prop.hpp"
 #include "ck/host_utility/kernel_launch.hpp"
 #endif
 
-#include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"

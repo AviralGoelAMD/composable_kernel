@@ -73,7 +73,7 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 32, 1, 8>,
-        8,
+        4,
         ComputeType>;
 
 #include "run_convnd_fwd_example.inc"

@@ -85,7 +85,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
          1,                         // CShuffleMXdlPerWavePerShuffle
          1,                         // CShuffleNXdlPerWavePerShuffle
          S<32, 8>,                  // CD Reduce Thread Transfer ClusterLengths _MPerBlock_NPerBlock
-         8,                         // CDE ReduceThreadTransfer ScalarPerVector _NPerBlock
+         4,                         // CDE ReduceThreadTransfer ScalarPerVector _NPerBlock
          1>;                        // RThread DstScalarPerVector _MPerBlock
 // clang-format on
 

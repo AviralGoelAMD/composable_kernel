@@ -91,7 +91,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmMultipleD_Xdl
      1,                          // index_t CShuffleMXdlPerWavePerShuffle,
      1,                          // index_t CShuffleNXdlPerWavePerShuffle,
      S<1, 32, 1, 8>,             // typename CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-     8>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
+     4>;                         // index_t CShuffleBlockTransferScalarPerVector_NPerBlock>
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
