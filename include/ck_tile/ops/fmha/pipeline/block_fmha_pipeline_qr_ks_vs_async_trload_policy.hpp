@@ -501,6 +501,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
+        constexpr auto kGemmK = Problem::BlockFmhaShape::kSubQKHeaddim;
         using GemmProblem =
             BlockGemmProblem<typename Problem::QDataType,
                              typename Problem::KDataType,
@@ -508,7 +509,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN0,
-                                                    Problem::BlockFmhaShape::kK0>,
+                                                    kGemmK>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
@@ -535,6 +536,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetPVBlockGemm()
     {
+        constexpr auto kGemmK = Problem::BlockFmhaShape::kN0;
         using GemmProblem =
             BlockGemmProblem<typename Problem::PDataType,
                              typename Problem::VDataType,
@@ -542,7 +544,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                              Problem::kBlockSize,
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN1,
-                                                    Problem::BlockFmhaShape::kK1>,
+                                                    kGemmK>,
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
@@ -580,12 +582,13 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
         using BlockGemm       = remove_cvref_t<decltype(GetQKBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
+        constexpr auto kGemmK = Problem::BlockFmhaShape::kSubQKHeaddim;
 
         constexpr index_t MWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm0BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK0;
+        constexpr index_t kKPerBlock = kGemmK;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -674,6 +677,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeVRegTileDistribution()
     {
+        constexpr auto kGemmK = Problem::BlockFmhaShape::kN0;
         using BlockGemm       = remove_cvref_t<decltype(GetPVBlockGemm<Problem>())>;
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm        = remove_cvref_t<decltype(config.template at<0>())>;
@@ -682,7 +686,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
         constexpr index_t NWarp = Problem::BlockFmhaShape::Gemm1BlockWarps::at(number<1>{});
 
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN1;
-        constexpr index_t kKPerBlock = Problem::BlockFmhaShape::kK1;
+        constexpr index_t kKPerBlock = kGemmK;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
