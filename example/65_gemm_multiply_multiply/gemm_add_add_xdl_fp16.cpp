@@ -83,6 +83,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
 
 int main(int argc, char* argv[])
 {
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = false;

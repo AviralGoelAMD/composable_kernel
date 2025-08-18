@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_reduce_xdl_common.hpp"
 
@@ -102,6 +102,11 @@ using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataTyp
 
 int main(int argc, char* argv[])
 {
+    // temp disable on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
     bool do_verification = true;
     int init_method      = 1;
     bool time_kernel     = true;

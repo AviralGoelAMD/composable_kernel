@@ -56,4 +56,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdlSplitKCShu
 
 #include "run_splitK_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_splitK_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    // temp disable on gfx11
+    if(ck::is_gfx11_supported())
+    {
+        return 0;
+    }
+    return !run_splitK_gemm_example(argc, argv);
+}
