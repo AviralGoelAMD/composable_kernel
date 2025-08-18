@@ -468,15 +468,27 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                              make_tuple(number<kM0>{}, number<kN0>{}),
                              {0, 0},
                              Policy::template MakeShuffledBiasTileDistribution<Problem>());
-
-        // ----------------------------Loop write out------------------------------//
-        auto dq_dram_window = make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
-                                               dq_dram_block_window_tmp.get_window_lengths(),
-                                               {seqlen_q_start, 0});
-
+    
         using SPBlockTileType     = decltype(gemm_0.MakeCBlockTile());
         using SPGradBlockTileType = decltype(gemm_2.MakeCBlockTile());
         using QGradBlockTileType  = decltype(gemm_4.MakeCBlockTile());
+        // ----------------------------Loop write out------------------------------//
+        auto dq_dram_window = [&]() {
+            if constexpr(kIsAtomic32)
+            {
+                return make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        dq_dram_block_window_tmp.get_window_lengths(),
+                                        {seqlen_q_start, 0});
+            }
+            else
+            {
+                return make_tile_window(dq_dram_block_window_tmp.get_bottom_tensor_view(),
+                                        dq_dram_block_window_tmp.get_window_lengths(),
+                                        {seqlen_q_start, 0},
+                                        decltype(cast_tile<QGradDataType>(
+                                            QGradBlockTileType{}))::get_tile_distribution());
+            }
+        }();
 
         index_t i_total_loops = 0;
         index_t seqlen_q_step = seqlen_q_start;
@@ -800,7 +812,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 }
                 else
                 {
-                    update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                    buffer_store_fence();
+                    update_tile_raw(dq_dram_window,
+                                    cast_tile<QGradDataType>(dq_acc),
+                                    number<-1>{},
+                                    bool_constant<false>{});
                 }
             }
 
@@ -1049,7 +1065,11 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }
             else
             {
-                update_tile(dq_dram_window, cast_tile<QDataType>(dq_acc));
+                buffer_store_fence();
+                update_tile_raw(dq_dram_window,
+                                cast_tile<QGradDataType>(dq_acc),
+                                number<-1>{},
+                                bool_constant<false>{});
             }
         }
 

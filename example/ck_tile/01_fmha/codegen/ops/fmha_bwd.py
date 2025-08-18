@@ -606,7 +606,7 @@ class FmhaBwdConvertQGradKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_wn0{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_wn0{self.F_wn0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
         else: n += '_npad'
         if self.F_deterministic == 't' : n += '_deterministic'
@@ -802,9 +802,6 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
         for tile, mode, mask, bias, dbias, dropout, spad1d, dpad, dvpad, deterministic, atomic32 in itertools.product(tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], DROPOUT_MAP.keys(), *([["t", "f"]] * 5)):
             assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
             hdim = tile.F_bhdq
-            # xiangxli debug
-            if mode == "group" or deterministic == 't' or bias != "no" or dpad == "t" or dvpad == "t" or (hdim!=256 and hdim!=128):
-                continue
             if (mode == "group") and (spad1d == "f"):
                 continue
             if (mode == "group" or ('no' not in mask)) and tile.max_seq_q != 0:
