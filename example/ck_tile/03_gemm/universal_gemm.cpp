@@ -11,6 +11,7 @@
 
 #include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
+#include "logging.hpp"
 #include "run_gemm_example.inc"
 
 template <typename GemmConfig,
@@ -277,6 +278,8 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+
+    CK_LOG_GEMM_CLI_ARGS(data_type, a_layout, b_layout);
 
     if(data_type == "fp16")
     {

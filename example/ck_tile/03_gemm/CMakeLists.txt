@@ -16,3 +16,7 @@ target_compile_options(tile_example_gemm_basic PRIVATE ${EXAMPLE_GEMM_COMPILE_OP
 target_compile_options(tile_example_gemm_universal PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 target_compile_options(tile_example_gemm_weight_preshuffle PRIVATE ${EXAMPLE_WEIGHT_PRESHUFFLE_COMPILE_OPTIONS})
 target_compile_options(tile_example_gemm_reduce PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
+# Speed up rebuilds for trivial host-only changes:
+# 1) Add a small host-only TU for logging that can be edited without recompiling kernels
+target_sources(tile_example_gemm_universal PRIVATE logging.cpp)

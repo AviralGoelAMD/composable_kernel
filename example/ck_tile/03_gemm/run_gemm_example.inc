@@ -2,6 +2,8 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+extern "C" void ck_tile_log_kbatch(long kbatch);
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -252,6 +254,10 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " Persistent=" << (persistent ? "on" : "off") << " : \n"
               << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
+
+    std::cout << "kernel is finished" << std::endl;
+    // Print kbatch via a host-only TU to avoid recompiling device-heavy code on trivial edits
+    ck_tile_log_kbatch(kbatch);
 
     return ave_time;
 }
