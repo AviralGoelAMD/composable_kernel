@@ -631,6 +631,11 @@ struct DeviceGemmMultipleD_Xdl_CShuffle : public DeviceGemmMultipleD<ALayout,
         {
             return false;
         }
+        // temp disable on gfx11
+        if(ck::is_gfx11_supported())
+        {
+            return false;
+        }
         if(!IsSupported(arg.MRaw_, arg.NRaw_, arg.KRaw_))
         {
             return false;

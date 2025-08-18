@@ -656,7 +656,11 @@ struct DeviceBatchedGemmGemm_Xdl_CShuffle : public DeviceBatchedGemmGemm<ALayout
         {
             return false;
         }
-
+        // temp disable on gfx11
+        if(ck::is_gfx11_supported())
+        {
+            return false;
+        }
         // Note: we need raw lengths since threadwise copy can not handle vector load when part of
         // vector is out of bounds
         const auto MRaw      = arg.raw_lengths_m_n_k_o_[0];

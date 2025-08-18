@@ -689,6 +689,11 @@ struct DeviceGemmLayerNorm_Xdl_CShuffle : public BaseOperator
         {
             return false;
         }
+        // temp disable on gfx11
+        if(ck::is_gfx11_supported())
+        {
+            return false;
+        }
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)

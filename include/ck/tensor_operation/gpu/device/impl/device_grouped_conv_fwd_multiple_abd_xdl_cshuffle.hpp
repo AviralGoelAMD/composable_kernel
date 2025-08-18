@@ -1430,6 +1430,11 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
         {
             return false;
         }
+        // temp disable on gfx11
+        if(ck::is_gfx11_supported())
+        {
+            return false;
+        }
         // check ConvolutionForwardSpecialization
         if constexpr(ConvForwardSpecialization ==
                      ConvolutionForwardSpecialization::Filter1x1Stride1Pad0)
