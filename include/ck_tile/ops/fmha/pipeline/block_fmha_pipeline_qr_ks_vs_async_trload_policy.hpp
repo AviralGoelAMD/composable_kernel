@@ -502,16 +502,15 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetQKBlockGemm()
     {
         constexpr auto kGemmK = Problem::BlockFmhaShape::kSubQKHeaddim;
-        using GemmProblem =
-            BlockGemmProblem<typename Problem::QDataType,
-                             typename Problem::KDataType,
-                             typename Problem::SaccDataType,
-                             Problem::kBlockSize,
-                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN0,
-                                                    kGemmK>,
-                                           typename Problem::BlockFmhaShape::Gemm0BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
+        using GemmProblem     = BlockGemmProblem<
+                typename Problem::QDataType,
+                typename Problem::KDataType,
+                typename Problem::SaccDataType,
+                Problem::kBlockSize,
+                TileGemmShape<
+                    sequence<Problem::BlockFmhaShape::kM0, Problem::BlockFmhaShape::kN0, kGemmK>,
+                    typename Problem::BlockFmhaShape::Gemm0BlockWarps,
+                    typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         using WarpGemm =
             WarpGemmMfmaDispatcher<typename Problem::QDataType,
@@ -537,16 +536,15 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
     CK_TILE_HOST_DEVICE static constexpr auto GetPVBlockGemm()
     {
         constexpr auto kGemmK = Problem::BlockFmhaShape::kN0;
-        using GemmProblem =
-            BlockGemmProblem<typename Problem::PDataType,
-                             typename Problem::VDataType,
-                             typename Problem::OaccDataType,
-                             Problem::kBlockSize,
-                             TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
-                                                    Problem::BlockFmhaShape::kN1,
-                                                    kGemmK>,
-                                           typename Problem::BlockFmhaShape::Gemm1BlockWarps,
-                                           typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
+        using GemmProblem     = BlockGemmProblem<
+                typename Problem::PDataType,
+                typename Problem::VDataType,
+                typename Problem::OaccDataType,
+                Problem::kBlockSize,
+                TileGemmShape<
+                    sequence<Problem::BlockFmhaShape::kM0, Problem::BlockFmhaShape::kN1, kGemmK>,
+                    typename Problem::BlockFmhaShape::Gemm1BlockWarps,
+                    typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         using WarpGemm = WarpGemmMfmaDispatcher<
             typename Problem::PDataType,
@@ -571,7 +569,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                                 typename Problem::OaccDataType,
                                                 typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                                 WarpGemm,
-                                                GemmLoopOrder::KMN>;
+                                                GemmLoopOrder::MNK>;
 
         return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
@@ -663,9 +661,9 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                        tuple<sequence<MIterPerWarp, MWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<1, 0>>,
                                        tuple<sequence<1, 0>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
-
+        
         constexpr auto p_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
             p_block_outer_dstr_encoding, typename WarpGemm::AWarpDstrEncoding{});
 
@@ -698,7 +696,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                        tuple<sequence<NIterPerWarp, NWarp>, sequence<KIterPerWarp>>,
                                        tuple<sequence<0, 1>>,
                                        tuple<sequence<0, 1>>,
-                                       sequence<2, 1>,
+                                       sequence<1, 2>,
                                        sequence<0, 0>>{};
 
         constexpr auto v_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
